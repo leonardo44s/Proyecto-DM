@@ -11,13 +11,13 @@ exports.register = async (req, res) => {
   const existe = await User.findOne({ email });
   if (existe) return res.status(400).json({ message: "Ya existe el usuario" });
 
-  const hash = await bcrypt.hash(password, 10);
+  // NO hashees aquí. El modelo hará el hash automáticamente al guardar.
   const user = new User({
-  nombre,
-  email,
-  passwordHash: hash, // <--- CAMBIAR AQUÍ
-  rol: rol === "comerciante" ? "comerciante" : "cliente"
-});
+    nombre,
+    email,
+    password, // <--- debe ser password, el modelo lo hashea en pre-save
+    rol: rol === "merchant" ? "merchant" : "customer"
+  });
 
   await user.save();
 

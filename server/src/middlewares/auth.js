@@ -1,16 +1,15 @@
 const jwt = require("jsonwebtoken");
-const User = require("../models/User");
+const secret = process.env.JWT_SECRET || "clave_secreta";
 
-module.exports = async function(req, res, next) {
-  const token = req.header("Authorization")?.replace("Bearer ", "");
-  if (!token) return res.status(401).json({ message: "No token" });
-
+module.exports = function(req, res, next) {
+  const header = req.headers["authorization"];
+  if (!header) return res.status(401).json({ message: "No autorizado" });
+  const token = header.split(" ")[1];
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = await User.findById(decoded.id);
-    if (!req.user) return res.status(401).json({ message: "Usuario no válido" });
+    const decoded = jwt.verify(token, secret);
+    req.user = decoded;
     next();
-  } catch (err) {
-    return res.status(401).json({ message: "Token inválido" });
+  } catch (e) {
+    res.status(401).json({ message: "Token inválido" });
   }
 };

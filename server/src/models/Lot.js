@@ -11,4 +11,4 @@ const LotSchema = new mongoose.Schema({
 
 LotSchema.index({ fechaVencimiento: 1 });
 
-module.exports = mongoose.model("Lot", LotSchema);
+module.exports = mongoose.models.Lot || mongoose.model("Lot", LotSchema);

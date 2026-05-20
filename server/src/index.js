@@ -20,6 +20,6 @@ app.use("/notifications", require("./routes/notifications"));
 require("./services/cron");
 
 const PORT = process.env.PORT || 4000;
-mongoose.connect(process.env.MONGO_URI).then(() => {
+mongoose.connect(process.env.MONGODB_URI).then(() => {
   app.listen(PORT, () => console.log("Server ready in port", PORT));
 });

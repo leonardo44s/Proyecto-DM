@@ -1,23 +1,23 @@
 const express = require("express");
 const router = express.Router();
-const Notification = require("../models/Notification");
 const auth = require("../middlewares/auth");
+const Notification = require("../models/Notification");
 
+// Listar notificaciones del usuario actual
 router.get("/", auth, async (req, res) => {
-  const userId = req.user.id;
-  const role = req.user.rol;
-  const notifications = await Notification.find({
-    $or: [
-      { recipient: userId },
-      { roleRecipient: role }
-    ]
-  }).sort({ createdAt: -1 });
-  res.json(notifications);
+  const notis = await Notification.find({ usuario: req.user.id })
+    .sort({ createdAt: -1 });
+  res.json(notis);
 });
 
-router.put("/:id/read", auth, async (req, res) => {
-  const n = await Notification.findByIdAndUpdate(req.params.id, { read: true }, { new: true });
-  res.json(n);
+// Marcar como leída
+router.put("/:id/leida", auth, async (req, res) => {
+  const noti = await Notification.findOneAndUpdate(
+    { _id: req.params.id, usuario: req.user.id },
+    { leida: true },
+    { new: true }
+  );
+  res.json(noti);
 });
 
 module.exports = router;

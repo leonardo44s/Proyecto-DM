@@ -16,4 +16,4 @@ const StoreSchema = new mongoose.Schema({
 
 StoreSchema.index({ coords: "2dsphere" }); // Para geolocalización futura
 
-module.exports = mongoose.model("Store", StoreSchema);
+module.exports = mongoose.models.Store || mongoose.model("Store", StoreSchema);

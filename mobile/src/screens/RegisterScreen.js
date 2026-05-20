@@ -61,8 +61,8 @@ export default function RegisterScreen({ navigation }) {
           style={styles.picker}
           itemStyle={{ fontSize: 16 }}
         >
-          <Picker.Item label="Cliente" value="cliente" />
-          <Picker.Item label="Comerciante" value="comerciante" />
+          <Picker.Item label="Cliente" value="customer" />
+          <Picker.Item label="Comerciante" value="merchant" />
         </Picker>
       </View>
       <View style={{ marginVertical: 16 }}>

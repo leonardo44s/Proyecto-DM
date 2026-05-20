@@ -10,13 +10,13 @@ const UserSchema = new mongoose.Schema({
   rol: { type: String, enum: ["merchant", "customer", "admin"], default: "customer" }
 }, { timestamps: true });
 
-UserSchema.pre("save", async function(next) {
-  if (!this.isModified("password")) return next();
+// Pre-save hook - versión sin next()
+UserSchema.pre("save", async function () {
+  if (!this.isModified("password")) return;
   this.password = await bcrypt.hash(this.password, 10);
-  next();
 });
 
-UserSchema.methods.comparePassword = function(pw) {
+UserSchema.methods.comparePassword = function (pw) {
   return bcrypt.compare(pw, this.password);
 };
 
