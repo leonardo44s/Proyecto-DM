@@ -1,30 +1,23 @@
 const express = require("express");
 const router = express.Router();
+const Notification = require("../models/Notification");
 const auth = require("../middlewares/auth");
-const Notificacion = require("../models/Notification");
 
-// Listar notificaciones del usuario actual
 router.get("/", auth, async (req, res) => {
-  const notis = await Notificacion.find({ usuario: req.user.id });
-  res.json(notis);
+  const userId = req.user.id;
+  const role = req.user.rol;
+  const notifications = await Notification.find({
+    $or: [
+      { recipient: userId },
+      { roleRecipient: role }
+    ]
+  }).sort({ createdAt: -1 });
+  res.json(notifications);
 });
 
-// Crear notificación (opcional, por lógica de negocio)
-router.post("/", auth, async (req, res) => {
-  const { mensaje } = req.body;
-  const noti = new Notificacion({ usuario: req.user.id, mensaje });
-  await noti.save();
-  res.status(201).json(noti);
-});
-
-// Marcar como leída
-router.put("/:id/leida", auth, async (req, res) => {
-  const noti = await Notificacion.findOneAndUpdate(
-    { _id: req.params.id, usuario: req.user.id },
-    { leida: true },
-    { new: true }
-  );
-  res.json(noti);
+router.put("/:id/read", auth, async (req, res) => {
+  const n = await Notification.findByIdAndUpdate(req.params.id, { read: true }, { new: true });
+  res.json(n);
 });
 
 module.exports = router;

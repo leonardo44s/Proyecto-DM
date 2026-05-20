@@ -1,17 +1,16 @@
-// middlewares/auth.js
-
 const jwt = require("jsonwebtoken");
-const secret = process.env.JWT_SECRET || "clave_secreta";
+const User = require("../models/User");
 
-module.exports = function(req, res, next) {
-  const header = req.headers["authorization"];
-  if (!header) return res.status(401).json({ message: "No autorizado" });
-  const token = header.split(" ")[1];
+module.exports = async function(req, res, next) {
+  const token = req.header("Authorization")?.replace("Bearer ", "");
+  if (!token) return res.status(401).json({ message: "No token" });
+
   try {
-    const decoded = jwt.verify(token, secret);
-    req.user = decoded;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = await User.findById(decoded.id);
+    if (!req.user) return res.status(401).json({ message: "Usuario no válido" });
     next();
-  } catch (e) {
-    res.status(401).json({ message: "Token inválido" });
+  } catch (err) {
+    return res.status(401).json({ message: "Token inválido" });
   }
 };

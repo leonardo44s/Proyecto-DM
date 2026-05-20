@@ -1,55 +1,40 @@
 const express = require("express");
 const router = express.Router();
+const Product = require("../models/Products");
 const auth = require("../middlewares/auth");
-const Producto = require("../models/Products");
+const roleGuard = require("../middlewares/roleGuard");
 
-// Listar todos los productos
-router.get("/", auth, async (req, res) => {
-  const productos = await Producto.find();
+// Create
+router.post("/", auth, roleGuard("merchant"), async (req, res) => {
+  try {
+    const p = new Product({ ...req.body, createdBy: req.user.id });
+    await p.save();
+    res.status(201).json(p);
+  } catch (err) {
+    res.status(400).json({ message: "Error", error: err });
+  }
+});
+
+// List by Store
+router.get("/", async (req, res) => {
+  const filter = req.query.store ? { tienda: req.query.store } : {};
+  const productos = await Product.find(filter);
   res.json(productos);
 });
 
-// Crear producto - SOLO comerciante
-router.post("/", auth, async (req, res) => {
-  if (req.user.rol !== "comerciante")
-    return res.status(403).json({ message: "Solo los comerciantes pueden crear productos" });
-
-  const { nombre, descripcion } = req.body;
-  const nuevo = new Producto({
-    nombre,
-    descripcion,
-    usuario: req.user.id
-  });
-  await nuevo.save();
-  res.status(201).json(nuevo);
-});
-
-// Actualizar producto - SOLO comerciante
-router.put("/:id", auth, async (req, res) => {
-  if (req.user.rol !== "comerciante")
-    return res.status(403).json({ message: "Solo los comerciantes pueden actualizar productos" });
-
-  const { nombre, descripcion } = req.body;
-  const actualizado = await Producto.findByIdAndUpdate(
-    req.params.id,
-    { nombre, descripcion },
-    { new: true }
+// Update
+router.put("/:id", auth, roleGuard("merchant"), async (req, res) => {
+  const prod = await Product.findOneAndUpdate(
+    { _id: req.params.id, createdBy: req.user.id },
+    req.body, { new: true }
   );
-  if (!actualizado) return res.status(404).json({ message: "Producto no encontrado" });
-  res.json(actualizado);
+  res.json(prod);
 });
 
-// Eliminar producto - SOLO comerciante
-router.delete("/:id", auth, async (req, res) => {
-  if (req.user.rol !== "comerciante")
-    return res.status(403).json({ message: "Solo los comerciantes pueden eliminar productos" });
-
-  const producto = await Producto.findById(req.params.id);
-  if (!producto)
-    return res.status(404).json({ message: "Producto no encontrado" });
-
-  await Producto.findByIdAndDelete(req.params.id);
-  res.json({ ok: true, message: "Eliminado correctamente" });
+// Delete
+router.delete("/:id", auth, roleGuard("merchant"), async (req, res) => {
+  await Product.deleteOne({ _id: req.params.id, createdBy: req.user.id });
+  res.json({ message: "Producto eliminado" });
 });
 
 module.exports = router;

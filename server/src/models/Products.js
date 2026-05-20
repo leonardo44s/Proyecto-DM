@@ -1,9 +1,12 @@
 const mongoose = require("mongoose");
 
-const ProductoSchema = new mongoose.Schema({
+const ProductSchema = new mongoose.Schema({
   nombre: String,
-  descripcion: String,
-  usuario: { type: mongoose.Schema.Types.ObjectId, ref: "User" }
+  categoria: String,
+  precioBase: Number,
+  imagen: String,
+  tienda: { type: mongoose.Schema.Types.ObjectId, ref: "Store", required: true },
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" }
 }, { timestamps: true });
 
-module.exports = mongoose.model("Producto", ProductoSchema);
+module.exports = mongoose.model("Product", ProductSchema);
