@@ -290,13 +290,7 @@ export default function ProductsScreen() {
             onChangeText={setNombre}
             style={styles.input}
           />
-          <TextInput
-            placeholder="Descripcion"
-            value={desc}
-            onChangeText={setDesc}
-            style={styles.input}
-            multiline
-          />
+          
           <View style={styles.row}>
             <TextInput
               placeholder="Precio base"
