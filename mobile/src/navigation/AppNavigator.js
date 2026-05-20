@@ -7,11 +7,12 @@ import { createDrawerNavigator } from "@react-navigation/drawer";
 
 import LoginScreen from "../screens/LoginScreen";
 import RegisterScreen from "../screens/RegisterScreen";
-import HomeScreen from "../screens/HomeScreen";
 import ProductsScreen from "../screens/ProductsScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import OffersScreen from "../screens/OffersScreen";
+import OfertasClienteScreen from "../screens/OfertasClienteScreen";
 import ReservationsScreen from "../screens/ReservationsScreen";
+import ReservasComercianteScreen from "../screens/ReservasComercianteScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
 
 const Stack = createNativeStackNavigator();
@@ -19,10 +20,34 @@ const Drawer = createDrawerNavigator();
 
 function DrawerComerciante({ onLogout }) {
   return (
-    <Drawer.Navigator initialRouteName="Productos">
-      <Drawer.Screen name="Productos" component={ProductsScreen} />
-      <Drawer.Screen name="Ofertas" component={OffersScreen} />
-      <Drawer.Screen name="Notificaciones" component={NotificationsScreen} />
+    <Drawer.Navigator 
+      initialRouteName="Productos"
+      screenOptions={{
+        headerStyle: { backgroundColor: '#2E7D32' },
+        headerTintColor: '#fff',
+        drawerActiveTintColor: '#2E7D32',
+      }}
+    >
+      <Drawer.Screen 
+        name="Productos" 
+        component={ProductsScreen}
+        options={{ title: 'Mis Productos' }}
+      />
+      <Drawer.Screen 
+        name="Ofertas" 
+        component={OffersScreen}
+        options={{ title: 'Mis Ofertas' }}
+      />
+      <Drawer.Screen 
+        name="Reservas" 
+        component={ReservasComercianteScreen}
+        options={{ title: 'Reservas Recibidas' }}
+      />
+      <Drawer.Screen 
+        name="Notificaciones" 
+        component={NotificationsScreen}
+        options={{ title: 'Notificaciones' }}
+      />
       <Drawer.Screen name="Perfil">
         {(props) => <ProfileScreen {...props} onLogout={onLogout} />}
       </Drawer.Screen>
@@ -32,10 +57,29 @@ function DrawerComerciante({ onLogout }) {
 
 function DrawerCliente({ onLogout }) {
   return (
-    <Drawer.Navigator initialRouteName="Productos">
-      <Drawer.Screen name="Productos" component={ProductsScreen} />
-      <Drawer.Screen name="Reservas" component={ReservationsScreen} />
-      <Drawer.Screen name="Notificaciones" component={NotificationsScreen} />
+    <Drawer.Navigator 
+      initialRouteName="Ofertas"
+      screenOptions={{
+        headerStyle: { backgroundColor: '#1976D2' },
+        headerTintColor: '#fff',
+        drawerActiveTintColor: '#1976D2',
+      }}
+    >
+      <Drawer.Screen 
+        name="Ofertas" 
+        component={OfertasClienteScreen}
+        options={{ title: 'Ofertas Disponibles' }}
+      />
+      <Drawer.Screen 
+        name="Reservas" 
+        component={ReservationsScreen}
+        options={{ title: 'Mis Reservas' }}
+      />
+      <Drawer.Screen 
+        name="Notificaciones" 
+        component={NotificationsScreen}
+        options={{ title: 'Notificaciones' }}
+      />
       <Drawer.Screen name="Perfil">
         {(props) => <ProfileScreen {...props} onLogout={onLogout} />}
       </Drawer.Screen>
@@ -59,18 +103,19 @@ export default function AppNavigator() {
     check();
   }, []);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
+    const role = await AsyncStorage.getItem("rol");
+    setRol(role);
     setIsLogged(true);
-    AsyncStorage.getItem("rol").then(setRol);
   };
 
   const handleLogout = async () => {
-  await AsyncStorage.removeItem("token");
-  await AsyncStorage.removeItem("rol");
-  await AsyncStorage.removeItem("user");
-  setIsLogged(false);
-  setRol(null);
-};
+    await AsyncStorage.removeItem("token");
+    await AsyncStorage.removeItem("rol");
+    await AsyncStorage.removeItem("user");
+    setIsLogged(false);
+    setRol(null);
+  };
 
   if (loading) return null;
 
@@ -78,12 +123,12 @@ export default function AppNavigator() {
     <NavigationContainer>
       {!isLogged ? (
         <Stack.Navigator>
-          <Stack.Screen name="Iniciar sesión">
+          <Stack.Screen name="Iniciar sesion">
             {(props) => <LoginScreen {...props} onLogin={handleLogin} />}
           </Stack.Screen>
           <Stack.Screen name="Registrar" component={RegisterScreen} />
         </Stack.Navigator>
-      ) : rol === "comerciante" ? (
+      ) : rol === "merchant" ? (
         <DrawerComerciante onLogout={handleLogout} />
       ) : (
         <DrawerCliente onLogout={handleLogout} />

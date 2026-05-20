@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, Button, Alert, StyleSheet } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet, Platform, KeyboardAvoidingView, ScrollView } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../services/api";
 
@@ -8,81 +8,201 @@ export default function LoginScreen({ navigation, onLogin }) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const showAlert = (msg, title = "Aviso") => {
+    if (Platform.OS === "web") window.alert(msg);
+    else Alert.alert(title, msg);
+  };
+
   const login = async () => {
-    if (!email || !password) {
-      Alert.alert("Faltan datos", "Por favor completa ambos campos.");
+    if (!email.trim() || !password) {
+      showAlert("Por favor completa ambos campos.");
       return;
     }
     setLoading(true);
     try {
-      const { data } = await api.post("/auth/login", { email, password });
+      const { data } = await api.post("/auth/login", { 
+        email: email.trim().toLowerCase(), 
+        password 
+      });
       await AsyncStorage.setItem("token", data.token);
       await AsyncStorage.setItem("user", JSON.stringify(data.user));
       await AsyncStorage.setItem("rol", data.user.rol);
       onLogin();
     } catch (e) {
-      Alert.alert("Error", e?.response?.data?.message || "No se pudo ingresar");
+      showAlert(e?.response?.data?.message || "No se pudo iniciar sesion. Verifica tus credenciales.");
     }
     setLoading(false);
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.titulo}>Iniciar sesión</Text>
-      <Text style={styles.label}>Correo</Text>
-      <TextInput
-        value={email}
-        onChangeText={setEmail}
-        placeholder="ejemplo@correo.com"
-        style={styles.input}
-        autoCapitalize="none"
-        keyboardType="email-address"
-      />
-      <Text style={styles.label}>Contraseña</Text>
-      <TextInput
-        value={password}
-        onChangeText={setPassword}
-        placeholder="Contraseña"
-        style={styles.input}
-        secureTextEntry
-      />
-      <View style={{ marginVertical: 16 }}>
-        <Button title={loading ? "Ingresando..." : "Ingresar"} onPress={login} disabled={loading} />
-      </View>
-      <Button
-        title="Crear cuenta"
-        onPress={() => navigation.navigate("Registrar")}
-      />
-    </View>
+    <KeyboardAvoidingView 
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <View style={styles.header}>
+          <Text style={styles.appName}>Anti-Caducidad</Text>
+          <Text style={styles.tagline}>Reduce el desperdicio, ahorra dinero</Text>
+        </View>
+
+        <View style={styles.formCard}>
+          <Text style={styles.titulo}>Iniciar sesion</Text>
+          
+          <Text style={styles.label}>Correo electronico</Text>
+          <TextInput
+            value={email}
+            onChangeText={setEmail}
+            placeholder="tu@correo.com"
+            style={styles.input}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            autoComplete="email"
+          />
+          
+          <Text style={styles.label}>Contrasena</Text>
+          <TextInput
+            value={password}
+            onChangeText={setPassword}
+            placeholder="Tu contrasena"
+            style={styles.input}
+            secureTextEntry
+            autoComplete="password"
+          />
+          
+          <TouchableOpacity 
+            style={[styles.loginButton, loading && styles.buttonDisabled]} 
+            onPress={login} 
+            disabled={loading}
+          >
+            <Text style={styles.loginButtonText}>
+              {loading ? "Ingresando..." : "Ingresar"}
+            </Text>
+          </TouchableOpacity>
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>o</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <TouchableOpacity 
+            style={styles.registerButton}
+            onPress={() => navigation.navigate("Registrar")}
+          >
+            <Text style={styles.registerButtonText}>Crear una cuenta nueva</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.footer}>
+          Al iniciar sesion aceptas nuestros terminos y condiciones
+        </Text>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    padding: 30,
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#f5f5f5",
+  },
+  scrollContent: {
+    flexGrow: 1,
+    padding: 24,
     justifyContent: "center",
   },
+  header: {
+    alignItems: "center",
+    marginBottom: 32,
+  },
+  appName: {
+    fontSize: 32,
+    fontWeight: "bold",
+    color: "#2E7D32",
+    marginBottom: 8,
+  },
+  tagline: {
+    fontSize: 16,
+    color: "#666",
+  },
+  formCard: {
+    backgroundColor: "#fff",
+    padding: 24,
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
   titulo: {
-    fontSize: 26,
-    textAlign: "center",
-    marginBottom: 24,
+    fontSize: 24,
     fontWeight: "bold",
     color: "#333",
+    marginBottom: 24,
+    textAlign: "center",
   },
   label: {
-    fontSize: 16,
-    marginTop: 10,
-    marginBottom: 4,
-    color: "#333",
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#555",
+    marginBottom: 8,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 6,
-    backgroundColor: "#fafafa"
+    borderColor: "#ddd",
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 16,
+    backgroundColor: "#fafafa",
+    fontSize: 16,
+  },
+  loginButton: {
+    backgroundColor: "#2E7D32",
+    padding: 16,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  loginButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  divider: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 24,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#ddd",
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    color: "#999",
+    fontSize: 14,
+  },
+  registerButton: {
+    padding: 16,
+    borderRadius: 10,
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#2E7D32",
+  },
+  registerButtonText: {
+    color: "#2E7D32",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+  footer: {
+    textAlign: "center",
+    color: "#999",
+    fontSize: 12,
+    marginTop: 24,
   },
 });
