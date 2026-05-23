@@ -1,20 +1,98 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  Platform,
+  TextInput,
+  ActivityIndicator,
+  ScrollView,
+} from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Location from "expo-location";
+import { api } from "../services/api";
+import { Ionicons } from "@expo/vector-icons";
 
 const ROLES_DISPLAY = {
   merchant: "Comerciante",
   customer: "Cliente",
-  admin: "Administrador"
+  admin: "Administrador",
 };
 
 export default function ProfileScreen({ onLogout }) {
   const [user, setUser] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [nombre, setNombre] = useState("");
+  const [phone, setPhone] = useState("");
+  const [direccion, setDireccion] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [coords, setCoords] = useState(null);
+
+  const usarGpsUbicacion = async () => {
+    try {
+      setGpsLoading(true);
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        showAlert("Permiso de ubicación denegado para obtener la dirección.");
+        return;
+      }
+      let location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Highest,
+      });
+      const lat = location.coords.latitude;
+      const lng = location.coords.longitude;
+      setCoords([lng, lat]);
+
+      // Intentar revertir geocodificación mediante Nominatim
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+        {
+          headers: { "User-Agent": "ResYet-App/1.0" },
+        }
+      );
+      const data = await response.json();
+      if (data && data.address) {
+        const road = data.address.road || "";
+        const houseNumber = data.address.house_number || "";
+        const suburb = data.address.suburb || data.address.neighbourhood || "";
+        const city = data.address.city || data.address.town || "";
+        
+        let addressStr = "";
+        if (road) {
+          addressStr += road;
+          if (houseNumber) addressStr += ` ${houseNumber}`;
+        }
+        if (suburb) addressStr += `, ${suburb}`;
+        if (city) addressStr += `, ${city}`;
+
+        setDireccion(addressStr || data.display_name);
+      } else {
+        setDireccion(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+      }
+    } catch (err) {
+      console.error(err);
+      showAlert("No se pudo autocompletar la dirección con el GPS.");
+    } finally {
+      setGpsLoading(false);
+    }
+  };
+
+  const cargarUsuario = async () => {
+    const uStr = await AsyncStorage.getItem("user");
+    if (uStr) {
+      const u = JSON.parse(uStr);
+      setUser(u);
+      setNombre(u.nombre || "");
+      setPhone(u.phone || u.telefono || ""); // Manejar compatibilidad
+      setDireccion(u.direccion || "");
+    }
+  };
 
   useEffect(() => {
-    AsyncStorage.getItem("user").then(u => {
-      if (u) setUser(JSON.parse(u));
-    });
+    cargarUsuario();
   }, []);
 
   const showAlert = (msg, title = "Aviso") => {
@@ -22,26 +100,61 @@ export default function ProfileScreen({ onLogout }) {
     else Alert.alert(title, msg);
   };
 
+  const guardarCambios = async () => {
+    if (!nombre.trim()) {
+      showAlert("El nombre no puede estar vacío.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const token = await AsyncStorage.getItem("token");
+      const { data } = await api.put(
+        "/auth/profile",
+        {
+          nombre: nombre.trim(),
+          phone: phone.trim(),
+          direccion: direccion.trim(),
+          coords: coords,
+        },
+        {
+          headers: { Authorization: "Bearer " + token },
+        }
+      );
+
+      // Actualizar AsyncStorage y estado local
+      const updatedUser = { ...user, ...data };
+      await AsyncStorage.setItem("user", JSON.stringify(updatedUser));
+      setUser(updatedUser);
+      setEditing(false);
+      showAlert("Perfil actualizado correctamente.");
+    } catch (e) {
+      console.error(e);
+      showAlert(
+        "Error actualizando perfil: " + (e?.response?.data?.message || e?.message)
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const confirmarCerrarSesion = () => {
     if (Platform.OS === "web") {
-      if (window.confirm("¿Estas seguro de cerrar sesion?")) {
+      if (window.confirm("¿Estás seguro de cerrar sesión?")) {
         onLogout();
       }
     } else {
-      Alert.alert(
-        "Cerrar sesion",
-        "¿Estas seguro de cerrar sesion?",
-        [
-          { text: "Cancelar", style: "cancel" },
-          { text: "Si, cerrar", style: "destructive", onPress: onLogout },
-        ]
-      );
+      Alert.alert("Cerrar sesión", "¿Estás seguro de cerrar sesión?", [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Sí, cerrar", style: "destructive", onPress: onLogout },
+      ]);
     }
   };
 
   if (!user) {
     return (
       <View style={styles.container}>
+        <ActivityIndicator size="large" color="#1976D2" style={{ marginTop: 50 }} />
         <Text style={styles.loadingText}>Cargando perfil...</Text>
       </View>
     );
@@ -50,7 +163,8 @@ export default function ProfileScreen({ onLogout }) {
   const isMerchant = user.rol === "merchant";
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
+      {/* Cabecera del perfil */}
       <View style={[styles.header, isMerchant ? styles.headerMerchant : styles.headerCustomer]}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>
@@ -63,55 +177,145 @@ export default function ProfileScreen({ onLogout }) {
         </View>
       </View>
 
+      {/* Tarjeta de Información de la Cuenta */}
       <View style={styles.infoCard}>
-        <Text style={styles.sectionTitle}>Informacion de la cuenta</Text>
-        
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Correo electronico</Text>
-          <Text style={styles.infoValue}>{user.email}</Text>
-        </View>
-        
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Tipo de cuenta</Text>
-          <Text style={styles.infoValue}>{ROLES_DISPLAY[user.rol] || user.rol}</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Información de la cuenta</Text>
+          {!editing && (
+            <TouchableOpacity onPress={() => setEditing(true)} style={styles.editButton}>
+              <Ionicons name="create-outline" size={20} color={isMerchant ? "#2E7D32" : "#1976D2"} />
+              <Text style={[styles.editButtonText, { color: isMerchant ? "#2E7D32" : "#1976D2" }]}>
+                Editar
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
-        {user.telefono && (
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Telefono</Text>
-            <Text style={styles.infoValue}>{user.telefono}</Text>
-          </View>
-        )}
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Correo electrónico (no editable)</Text>
+          <Text style={styles.infoValueReadonly}>{user.email}</Text>
+        </View>
 
-        {user.direccion && (
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Direccion</Text>
-            <Text style={styles.infoValue}>{user.direccion}</Text>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Nombre completo</Text>
+          {editing ? (
+            <TextInput
+              value={nombre}
+              onChangeText={setNombre}
+              style={styles.input}
+              placeholder="Tu nombre"
+            />
+          ) : (
+            <Text style={styles.infoValue}>{user.nombre || "No especificado"}</Text>
+          )}
+        </View>
+
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Teléfono</Text>
+          {editing ? (
+            <TextInput
+              value={phone}
+              onChangeText={setPhone}
+              style={styles.input}
+              placeholder="Tu teléfono"
+              keyboardType="phone-pad"
+            />
+          ) : (
+            <Text style={styles.infoValue}>{user.phone || user.telefono || "No especificado"}</Text>
+          )}
+        </View>
+
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Dirección</Text>
+          {editing ? (
+            <View>
+              <View style={styles.addressContainer}>
+                <TextInput
+                  value={direccion}
+                  onChangeText={(text) => {
+                    setDireccion(text);
+                    setCoords(null);
+                  }}
+                  style={styles.addressInput}
+                  placeholder="Tu dirección"
+                />
+                {isMerchant && (
+                  <TouchableOpacity
+                    style={[
+                      styles.gpsButton,
+                      { backgroundColor: isMerchant ? "#2E7D32" : "#1976D2" },
+                      gpsLoading && styles.buttonDisabled,
+                    ]}
+                    onPress={usarGpsUbicacion}
+                    disabled={gpsLoading}
+                  >
+                    {gpsLoading ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Ionicons name="locate" size={20} color="#fff" />
+                    )}
+                  </TouchableOpacity>
+                )}
+              </View>
+              {isMerchant && (
+                <Text style={styles.helperText}>
+                  Usa el GPS para rellenar automáticamente la dirección.
+                </Text>
+              )}
+            </View>
+          ) : (
+            <Text style={styles.infoValue}>{user.direccion || "No especificada"}</Text>
+          )}
+        </View>
+
+        {editing && (
+          <View style={styles.editActions}>
+            <TouchableOpacity
+              style={[styles.saveButton, { backgroundColor: isMerchant ? "#2E7D32" : "#1976D2" }]}
+              onPress={guardarCambios}
+              disabled={saving}
+            >
+              {saving ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.saveButtonText}>Guardar</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => {
+                setNombre(user.nombre || "");
+                setPhone(user.phone || user.telefono || "");
+                setDireccion(user.direccion || "");
+                setEditing(false);
+              }}
+              disabled={saving}
+            >
+              <Text style={styles.cancelButtonText}>Cancelar</Text>
+            </TouchableOpacity>
           </View>
         )}
       </View>
 
+      {/* Tarjeta de Estadísticas / Información del Rol */}
       <View style={styles.statsCard}>
         <Text style={styles.sectionTitle}>
           {isMerchant ? "Tu actividad como comerciante" : "Tu actividad como cliente"}
         </Text>
         <Text style={styles.statsText}>
-          {isMerchant 
-            ? "Gestiona tus productos y ofertas desde el menu lateral. Recibiras notificaciones cuando un cliente reserve tus ofertas."
-            : "Explora las ofertas disponibles y realiza reservas. Recibiras notificaciones sobre el estado de tus reservas."
-          }
+          {isMerchant
+            ? "Gestiona tus productos y ofertas desde el menú lateral. Recibirás notificaciones cuando un cliente reserve tus ofertas."
+            : "Explora las ofertas disponibles y realiza reservas. Recibirás notificaciones sobre el estado de tus reservas."}
         </Text>
       </View>
 
-      <TouchableOpacity 
-        style={styles.logoutButton} 
-        onPress={confirmarCerrarSesion}
-      >
-        <Text style={styles.logoutButtonText}>Cerrar sesion</Text>
+      {/* Botón de cerrar sesión */}
+      <TouchableOpacity style={styles.logoutButton} onPress={confirmarCerrarSesion}>
+        <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
       </TouchableOpacity>
 
-      <Text style={styles.version}>Version 1.0.0</Text>
-    </View>
+      <Text style={styles.version}>Versión 1.1.0</Text>
+    </ScrollView>
   );
 }
 
@@ -122,7 +326,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     textAlign: "center",
-    marginTop: 50,
+    marginTop: 10,
     color: "#666",
   },
   header: {
@@ -156,6 +360,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#fff",
     marginBottom: 8,
+    textAlign: "center",
   },
   rolBadge: {
     backgroundColor: "rgba(255,255,255,0.2)",
@@ -179,14 +384,28 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: "600",
     color: "#333",
-    marginBottom: 16,
+  },
+  editButton: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  editButtonText: {
+    marginLeft: 4,
+    fontWeight: "600",
+    fontSize: 14,
   },
   infoRow: {
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: "#f0f0f0",
   },
@@ -198,6 +417,56 @@ const styles = StyleSheet.create({
   infoValue: {
     fontSize: 16,
     color: "#333",
+    fontWeight: "500",
+  },
+  infoValueReadonly: {
+    fontSize: 16,
+    color: "#777",
+    fontStyle: "italic",
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: "#fafafa",
+    fontSize: 15,
+    color: "#333",
+    marginTop: 4,
+  },
+  editActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 16,
+    gap: 12,
+  },
+  saveButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 90,
+  },
+  saveButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  cancelButton: {
+    backgroundColor: "#eee",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 90,
+  },
+  cancelButtonText: {
+    color: "#333",
+    fontWeight: "bold",
+    fontSize: 14,
   },
   statsCard: {
     backgroundColor: "#fff",
@@ -209,14 +478,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
+    marginBottom: 16,
   },
   statsText: {
     fontSize: 14,
     color: "#666",
     lineHeight: 22,
+    marginTop: 8,
   },
   logoutButton: {
-    margin: 16,
+    marginHorizontal: 16,
     backgroundColor: "#fff",
     padding: 16,
     borderRadius: 12,
@@ -233,6 +504,41 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: "#aaa",
     fontSize: 12,
-    marginBottom: 24,
+    marginTop: 24,
+  },
+  addressContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  addressInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: "#fafafa",
+    fontSize: 15,
+    color: "#333",
+  },
+  gpsButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    marginLeft: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  helperText: {
+    fontSize: 11,
+    color: "#888",
+    marginTop: 2,
+    marginLeft: 4,
+    marginBottom: 6,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
 });

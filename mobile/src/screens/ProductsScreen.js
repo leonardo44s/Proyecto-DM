@@ -2,6 +2,9 @@ import React, { useEffect, useState, useCallback } from "react";
 import { View, Text, TextInput, FlatList, TouchableOpacity, Alert, Modal, Platform, StyleSheet, ActivityIndicator, ScrollView } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../services/api";
+import * as Location from "expo-location";
+import { Ionicons } from "@expo/vector-icons";
+import { Picker } from "@react-native-picker/picker";
 
 export default function ProductsScreen() {
   const [products, setProducts] = useState([]);
@@ -9,13 +12,13 @@ export default function ProductsScreen() {
   const [nombre, setNombre] = useState("");
   const [desc, setDesc] = useState("");
   const [precio, setPrecio] = useState("");
-  const [categoria, setCategoria] = useState("");
+  const [categoria, setCategoria] = useState("Panadería");
   const [editModal, setEditModal] = useState(false);
   const [editId, setEditId] = useState(null);
   const [editNombre, setEditNombre] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [editPrecio, setEditPrecio] = useState("");
-  const [editCategoria, setEditCategoria] = useState("");
+  const [editCategoria, setEditCategoria] = useState("Panadería");
   
   // Estado para la tienda del comerciante
   const [miTienda, setMiTienda] = useState(null);
@@ -24,6 +27,57 @@ export default function ProductsScreen() {
   const [storeDireccion, setStoreDireccion] = useState("");
   const [storeHorarioApertura, setStoreHorarioApertura] = useState("08:00");
   const [storeHorarioCierre, setStoreHorarioCierre] = useState("20:00");
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [coords, setCoords] = useState(null);
+
+  const usarGpsUbicacion = async () => {
+    try {
+      setGpsLoading(true);
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        showAlert("Permiso de ubicación denegado.");
+        return;
+      }
+      let location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Highest,
+      });
+      const lat = location.coords.latitude;
+      const lng = location.coords.longitude;
+      setCoords([lng, lat]);
+
+      // Intentar revertir geocodificación mediante Nominatim
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+        {
+          headers: { "User-Agent": "ResYet-App/1.0" },
+        }
+      );
+      const data = await response.json();
+      if (data && data.address) {
+        const road = data.address.road || "";
+        const houseNumber = data.address.house_number || "";
+        const suburb = data.address.suburb || data.address.neighbourhood || "";
+        const city = data.address.city || data.address.town || "";
+        
+        let addressStr = "";
+        if (road) {
+          addressStr += road;
+          if (houseNumber) addressStr += ` ${houseNumber}`;
+        }
+        if (suburb) addressStr += `, ${suburb}`;
+        if (city) addressStr += `, ${city}`;
+
+        setStoreDireccion(addressStr || data.display_name);
+      } else {
+        setStoreDireccion(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+      }
+    } catch (err) {
+      console.error(err);
+      showAlert("No se pudo autocompletar la dirección con el GPS.");
+    } finally {
+      setGpsLoading(false);
+    }
+  };
 
   const getAuthHeader = async () => {
     const token = await AsyncStorage.getItem("token");
@@ -39,7 +93,11 @@ export default function ProductsScreen() {
       
       const res = await api.get("/stores", await getAuthHeader());
       const stores = res.data;
-      const myStore = stores.find(s => s.usuario === user.id || s.usuario?._id === user.id);
+      const userId = user._id || user.id;
+      const myStore = stores.find(s => {
+        const storeUserId = typeof s.usuario === "object" && s.usuario !== null ? s.usuario._id : s.usuario;
+        return String(storeUserId) === String(userId);
+      });
       setMiTienda(myStore || null);
       return myStore;
     } catch (e) {
@@ -93,7 +151,8 @@ export default function ProductsScreen() {
         horario: {
           apertura: storeHorarioApertura,
           cierre: storeHorarioCierre
-        }
+        },
+        coords: coords
       }, await getAuthHeader());
       setMiTienda(res.data);
       setShowStoreModal(false);
@@ -126,7 +185,7 @@ export default function ProductsScreen() {
       setNombre("");
       setDesc("");
       setPrecio("");
-      setCategoria("");
+      setCategoria("Panadería");
       loadProducts();
       showAlert("Producto creado correctamente");
     } catch (e) {
@@ -191,7 +250,7 @@ export default function ProductsScreen() {
       setEditNombre("");
       setEditDesc("");
       setEditPrecio("");
-      setEditCategoria("");
+      setEditCategoria("Panadería");
       loadProducts();
       showAlert("Producto actualizado");
     } catch (e) {
@@ -229,12 +288,28 @@ export default function ProductsScreen() {
               onChangeText={setStoreNombre}
               style={styles.input}
             />
-            <TextInput
-              placeholder="Direccion *"
-              value={storeDireccion}
-              onChangeText={setStoreDireccion}
-              style={styles.input}
-            />
+            <View style={styles.addressContainer}>
+              <TextInput
+                placeholder="Dirección *"
+                value={storeDireccion}
+                 onChangeText={(text) => {
+                   setStoreDireccion(text);
+                   setCoords(null);
+                 }}
+                style={styles.addressInput}
+              />
+              <TouchableOpacity
+                style={[styles.gpsButton, gpsLoading && styles.buttonDisabled]}
+                onPress={usarGpsUbicacion}
+                disabled={gpsLoading}
+              >
+                {gpsLoading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Ionicons name="locate" size={20} color="#fff" />
+                )}
+              </TouchableOpacity>
+            </View>
             <View style={styles.row}>
               <TextInput
                 placeholder="Apertura"
@@ -299,12 +374,19 @@ export default function ProductsScreen() {
               style={[styles.input, styles.halfInput]}
               keyboardType="numeric"
             />
-            <TextInput
-              placeholder="Categoria"
-              value={categoria}
-              onChangeText={setCategoria}
-              style={[styles.input, styles.halfInput]}
-            />
+            <View style={[styles.pickerContainer, styles.halfInput]}>
+              <Picker
+                selectedValue={categoria}
+                onValueChange={(itemValue) => setCategoria(itemValue)}
+                style={styles.picker}
+              >
+                <Picker.Item label="Panadería" value="Panadería" />
+                <Picker.Item label="Frutas/Verduras" value="Frutas/Verduras" />
+                <Picker.Item label="Lácteos" value="Lácteos" />
+                <Picker.Item label="Platos Preparados" value="Platos Preparados" />
+                <Picker.Item label="Otros" value="Otros" />
+              </Picker>
+            </View>
           </View>
           <TouchableOpacity style={styles.createButton} onPress={crearProducto}>
             <Text style={styles.createButtonText}>Crear Producto</Text>
@@ -342,12 +424,19 @@ export default function ProductsScreen() {
               style={styles.input}
               keyboardType="numeric"
             />
-            <TextInput
-              placeholder="Categoria"
-              value={editCategoria}
-              onChangeText={setEditCategoria}
-              style={styles.input}
-            />
+            <View style={[styles.pickerContainer, { marginBottom: 12 }]}>
+              <Picker
+                selectedValue={editCategoria}
+                onValueChange={(itemValue) => setEditCategoria(itemValue)}
+                style={styles.picker}
+              >
+                <Picker.Item label="Panadería" value="Panadería" />
+                <Picker.Item label="Frutas/Verduras" value="Frutas/Verduras" />
+                <Picker.Item label="Lácteos" value="Lácteos" />
+                <Picker.Item label="Platos Preparados" value="Platos Preparados" />
+                <Picker.Item label="Otros" value="Otros" />
+              </Picker>
+            </View>
             <View style={styles.modalButtons}>
               <TouchableOpacity style={styles.saveButton} onPress={actualizarProducto}>
                 <Text style={styles.saveButtonText}>Guardar</Text>
@@ -651,5 +740,44 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#666",
     marginBottom: 16,
+  },
+  addressContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  addressInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: "#fafafa",
+    fontSize: 16,
+  },
+  gpsButton: {
+    backgroundColor: "#1976D2",
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    marginLeft: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    marginBottom: 12,
+    backgroundColor: "#fafafa",
+    overflow: "hidden",
+    justifyContent: "center",
+  },
+  picker: {
+    height: 50,
+    width: "100%",
   },
 });

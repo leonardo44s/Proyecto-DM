@@ -1,7 +1,19 @@
 import React, { useState } from "react";
-import { View, TextInput, TouchableOpacity, Alert, Text, StyleSheet, Platform, KeyboardAvoidingView, ScrollView } from "react-native";
-import { Picker } from "@react-native-picker/picker";
+import {
+  View,
+  TextInput,
+  TouchableOpacity,
+  Alert,
+  Text,
+  StyleSheet,
+  Platform,
+  KeyboardAvoidingView,
+  ScrollView,
+  ActivityIndicator,
+} from "react-native";
+import * as Location from "expo-location";
 import { api } from "../services/api";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function RegisterScreen({ navigation }) {
   const [nombre, setNombre] = useState("");
@@ -11,34 +23,99 @@ export default function RegisterScreen({ navigation }) {
   const [rol, setRol] = useState("customer");
   const [loading, setLoading] = useState(false);
 
+  // Campos adicionales para comerciantes
+  const [direccion, setDireccion] = useState("");
+  const [nombreTienda, setNombreTienda] = useState("");
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [coords, setCoords] = useState(null);
+
   const showAlert = (msg, title = "Aviso") => {
     if (Platform.OS === "web") window.alert(msg);
     else Alert.alert(title, msg);
   };
 
+  const usarGpsUbicacion = async () => {
+    try {
+      setGpsLoading(true);
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        showAlert("Permiso de ubicación denegado para obtener la dirección.");
+        return;
+      }
+      let location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Highest,
+      });
+      const lat = location.coords.latitude;
+      const lng = location.coords.longitude;
+      setCoords([lng, lat]);
+
+      // Intentar revertir geocodificación mediante Nominatim
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+        {
+          headers: { "User-Agent": "ResYet-App/1.0" },
+        }
+      );
+      const data = await response.json();
+      if (data && data.address) {
+        // Formatear dirección amigable
+        const road = data.address.road || "";
+        const houseNumber = data.address.house_number || "";
+        const suburb = data.address.suburb || data.address.neighbourhood || "";
+        const city = data.address.city || data.address.town || "";
+        
+        let addressStr = "";
+        if (road) {
+          addressStr += road;
+          if (houseNumber) addressStr += ` ${houseNumber}`;
+        }
+        if (suburb) addressStr += `, ${suburb}`;
+        if (city) addressStr += `, ${city}`;
+
+        setDireccion(addressStr || data.display_name);
+      } else {
+        setDireccion(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+      }
+    } catch (err) {
+      console.error(err);
+      showAlert("No se pudo autocompletar la dirección con el GPS.");
+    } finally {
+      setGpsLoading(false);
+    }
+  };
+
   const registrar = async () => {
     if (!nombre.trim() || !email.trim() || !password) {
-      showAlert("Por favor llena todos los campos.");
+      showAlert("Por favor llena todos los campos obligatorios.");
       return;
     }
     if (password.length < 6) {
-      showAlert("La contrasena debe tener al menos 6 caracteres.");
+      showAlert("La contraseña debe tener al menos 6 caracteres.");
       return;
     }
     if (password !== confirmPassword) {
-      showAlert("Las contrasenas no coinciden.");
+      showAlert("Las contraseñas no coinciden.");
       return;
     }
-    
+    if (rol === "merchant") {
+      if (!nombreTienda.trim() || !direccion.trim()) {
+        showAlert("Comerciantes deben ingresar nombre del comercio y dirección.");
+        return;
+      }
+    }
+
     setLoading(true);
     try {
-      await api.post("/auth/register", { 
-        nombre: nombre.trim(), 
-        email: email.trim().toLowerCase(), 
-        password, 
-        rol 
+      await api.post("/auth/register", {
+        nombre: nombre.trim(),
+        email: email.trim().toLowerCase(),
+        password,
+        rol,
+        direccion: rol === "merchant" ? direccion.trim() : undefined,
+        nombreTienda: rol === "merchant" ? nombreTienda.trim() : undefined,
+        coords: rol === "merchant" ? coords : undefined
       });
-      showAlert("Registro exitoso! Ahora puedes iniciar sesion.");
+      showAlert("Registro exitoso! Ahora puedes iniciar sesión.");
       navigation.navigate("Iniciar sesion");
     } catch (e) {
       showAlert(e?.response?.data?.message || "No se pudo registrar. Intenta con otro correo.");
@@ -47,24 +124,24 @@ export default function RegisterScreen({ navigation }) {
   };
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.formCard}>
           <Text style={styles.titulo}>Crear cuenta</Text>
-          <Text style={styles.subtitulo}>Unete a la comunidad Anti-Caducidad</Text>
-          
-          <Text style={styles.label}>Nombre completo</Text>
+          <Text style={styles.subtitulo}>Únete a la comunidad Anti-Caducidad</Text>
+
+          <Text style={styles.label}>Nombre completo *</Text>
           <TextInput
             placeholder="Tu nombre"
             style={styles.input}
             value={nombre}
             onChangeText={setNombre}
           />
-          
-          <Text style={styles.label}>Correo electronico</Text>
+
+          <Text style={styles.label}>Correo electrónico *</Text>
           <TextInput
             placeholder="tu@correo.com"
             style={styles.input}
@@ -74,57 +151,132 @@ export default function RegisterScreen({ navigation }) {
             keyboardType="email-address"
             autoComplete="email"
           />
-          
-          <Text style={styles.label}>Contrasena</Text>
+
+          <Text style={styles.label}>Contraseña *</Text>
           <TextInput
-            placeholder="Minimo 6 caracteres"
+            placeholder="Mínimo 6 caracteres"
             style={styles.input}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
           />
-          
-          <Text style={styles.label}>Confirmar contrasena</Text>
+
+          <Text style={styles.label}>Confirmar contraseña *</Text>
           <TextInput
-            placeholder="Repite tu contrasena"
+            placeholder="Repite tu contraseña"
             style={styles.input}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             secureTextEntry
           />
-          
+
           <Text style={styles.label}>Tipo de cuenta</Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={rol}
-              onValueChange={setRol}
-              style={styles.picker}
+          <View style={styles.roleSelectorContainer}>
+            <TouchableOpacity
+              style={[
+                styles.roleOption,
+                rol === "customer" && { backgroundColor: "#1976D2", borderColor: "#1976D2" },
+              ]}
+              onPress={() => setRol("customer")}
             >
-              <Picker.Item label="Cliente - Busco ofertas" value="customer" />
-              <Picker.Item label="Comerciante - Tengo productos" value="merchant" />
-            </Picker>
+              <Ionicons
+                name="people"
+                size={20}
+                color={rol === "customer" ? "#fff" : "#1976D2"}
+              />
+              <Text
+                style={[
+                  styles.roleOptionText,
+                  rol === "customer" && { color: "#fff" },
+                ]}
+              >
+                Cliente
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.roleOption,
+                rol === "merchant" && { backgroundColor: "#2E7D32", borderColor: "#2E7D32" },
+              ]}
+              onPress={() => setRol("merchant")}
+            >
+              <Ionicons
+                name="storefront"
+                size={20}
+                color={rol === "merchant" ? "#fff" : "#2E7D32"}
+              />
+              <Text
+                style={[
+                  styles.roleOptionText,
+                  rol === "merchant" && { color: "#fff" },
+                ]}
+              >
+                Comerciante
+              </Text>
+            </TouchableOpacity>
           </View>
-          
+
+          {/* Campos adicionales de Comerciante */}
+          {rol === "merchant" && (
+            <View style={styles.merchantSection}>
+              <Text style={styles.label}>Nombre de tu Comercio *</Text>
+              <TextInput
+                placeholder="Ej: Minimercado La Esquina"
+                style={styles.input}
+                value={nombreTienda}
+                onChangeText={setNombreTienda}
+              />
+
+              <Text style={styles.label}>Dirección del Comercio *</Text>
+              <View style={styles.addressContainer}>
+                <TextInput
+                  placeholder="Ej: Calle 5 # 38-14, Cali"
+                  style={styles.addressInput}
+                  value={direccion}
+                  onChangeText={(text) => {
+                    setDireccion(text);
+                    setCoords(null);
+                  }}
+                />
+                <TouchableOpacity
+                  style={[styles.gpsButton, gpsLoading && styles.buttonDisabled]}
+                  onPress={usarGpsUbicacion}
+                  disabled={gpsLoading}
+                >
+                  {gpsLoading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Ionicons name="locate" size={20} color="#fff" />
+                  )}
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.helperText}>
+                Usa el GPS para rellenar automáticamente la dirección.
+              </Text>
+            </View>
+          )}
+
           {rol === "customer" && (
             <View style={styles.roleInfo}>
-              <Text style={styles.roleInfoTitle}>Como cliente podras:</Text>
-              <Text style={styles.roleInfoText}>- Ver ofertas de productos proximos a vencer</Text>
+              <Text style={styles.roleInfoTitle}>Como cliente podrás:</Text>
+              <Text style={styles.roleInfoText}>- Ver ofertas de productos próximos a vencer</Text>
               <Text style={styles.roleInfoText}>- Reservar productos con descuento</Text>
               <Text style={styles.roleInfoText}>- Recibir notificaciones de nuevas ofertas</Text>
             </View>
           )}
-          
+
           {rol === "merchant" && (
             <View style={[styles.roleInfo, styles.roleInfoMerchant]}>
-              <Text style={styles.roleInfoTitle}>Como comerciante podras:</Text>
+              <Text style={styles.roleInfoTitle}>Como comerciante podrás:</Text>
               <Text style={styles.roleInfoText}>- Publicar tus productos</Text>
               <Text style={styles.roleInfoText}>- Crear ofertas con descuentos</Text>
               <Text style={styles.roleInfoText}>- Gestionar reservas de clientes</Text>
             </View>
           )}
 
-          <TouchableOpacity 
-            style={[styles.registerButton, loading && styles.buttonDisabled]} 
+          <TouchableOpacity
+            style={[styles.registerButton, loading && styles.buttonDisabled]}
             onPress={registrar}
             disabled={loading}
           >
@@ -133,7 +285,7 @@ export default function RegisterScreen({ navigation }) {
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.loginLink}
             onPress={() => navigation.navigate("Iniciar sesion")}
           >
@@ -192,16 +344,59 @@ const styles = StyleSheet.create({
     backgroundColor: "#fafafa",
     fontSize: 16,
   },
-  pickerContainer: {
+  roleSelectorContainer: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 16,
+  },
+  roleOption: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
     borderColor: "#ddd",
     borderRadius: 10,
-    marginBottom: 16,
+    paddingVertical: 14,
     backgroundColor: "#fafafa",
-    overflow: "hidden",
+    gap: 8,
   },
-  picker: {
-    height: 50,
+  roleOptionText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#555",
+  },
+  merchantSection: {
+    marginBottom: 16,
+  },
+  addressContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  addressInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 10,
+    padding: 14,
+    backgroundColor: "#fafafa",
+    fontSize: 16,
+  },
+  gpsButton: {
+    backgroundColor: "#1976D2",
+    width: 48,
+    height: 48,
+    borderRadius: 10,
+    marginLeft: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  helperText: {
+    fontSize: 11,
+    color: "#888",
+    marginLeft: 4,
+    marginBottom: 8,
   },
   roleInfo: {
     backgroundColor: "#E3F2FD",

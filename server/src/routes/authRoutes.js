@@ -1,12 +1,14 @@
 const express = require("express");
 const router = express.Router();
 const User = require("../models/User");
+const Store = require("../models/Store");
 const jwt = require("jsonwebtoken");
 const auth = require("../middlewares/auth");
+const { geocodeAddress } = require("../utils/geocoder");
 
 router.post("/register", async (req, res) => {
   try {
-    let { rol, ...rest } = req.body;
+    let { rol, nombreTienda, coords, ...rest } = req.body;
     
     // Mapear roles del español al inglés
     if (rol === "cliente") rol = "customer";
@@ -14,6 +16,31 @@ router.post("/register", async (req, res) => {
     
     const u = new User({ ...rest, rol });
     await u.save();
+
+    if (rol === "merchant") {
+      // Crear la tienda asociada al comerciante
+      const storeName = nombreTienda || `Tienda de ${u.nombre}`;
+      const storeAddress = u.direccion || "Dirección no especificada";
+      let storeCoords = [-76.5226, 3.4516]; // Cali, Colombia por defecto [lng, lat]
+      
+      if (coords && Array.isArray(coords) && coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
+        storeCoords = [Number(coords[0]), Number(coords[1])];
+      } else {
+        storeCoords = await geocodeAddress(storeAddress);
+      }
+
+      const store = new Store({
+        nombre: storeName,
+        direccion: storeAddress,
+        coords: {
+          type: "Point",
+          coordinates: storeCoords
+        },
+        usuario: u._id
+      });
+      await store.save();
+    }
+
     res.status(201).json({ message: "Registrado con éxito" });
   } catch (err) {
     console.error("Error en registro:", err);
@@ -73,6 +100,54 @@ router.get("/me", auth, async (req, res) => {
     res.json(user);
   } catch (err) {
     res.status(500).json({ message: "Error al obtener usuario" });
+  }
+});
+
+router.put("/profile", auth, async (req, res) => {
+  try {
+    const { nombre, phone, direccion, coords } = req.body;
+    const updates = {};
+    if (nombre !== undefined) updates.nombre = nombre;
+    if (phone !== undefined) updates.phone = phone;
+    if (direccion !== undefined) updates.direccion = direccion;
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { $set: updates },
+      { new: true }
+    ).select("-password");
+
+    if (!user) {
+      return res.status(404).json({ message: "Usuario no encontrado" });
+    }
+
+    // Si es comerciante, también actualizamos su tienda
+    if (user.rol === "merchant") {
+      const store = await Store.findOne({ usuario: user._id });
+      if (store) {
+        if (nombre !== undefined) store.nombre = `Tienda de ${nombre}`;
+        if (direccion !== undefined) {
+          store.direccion = direccion;
+          
+          let storeCoords;
+          if (coords && Array.isArray(coords) && coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
+            storeCoords = [Number(coords[0]), Number(coords[1])];
+          } else {
+            storeCoords = await geocodeAddress(direccion);
+          }
+          store.coords = {
+            type: "Point",
+            coordinates: storeCoords
+          };
+        }
+        await store.save();
+      }
+    }
+
+    res.json(user);
+  } catch (err) {
+    console.error("Error al actualizar perfil:", err);
+    res.status(500).json({ message: "Error interno al actualizar perfil" });
   }
 });
 

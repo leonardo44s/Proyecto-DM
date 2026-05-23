@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const auth = require("../middlewares/auth");
-const Offer = require("../models/Offer");
+const Offer = require("../models/offer");
 const Product = require("../models/Products");
 
 // Listar todas las ofertas
@@ -9,7 +9,7 @@ router.get("/", auth, async (req, res) => {
   const filter = req.user.rol === "merchant"
     ? { usuario: req.user.id }
     : {};
-  const ofertas = await Offer.find(filter).populate("producto");
+  const ofertas = await Offer.find(filter).populate({ path: "producto", populate: { path: "tienda" } });
   res.json(ofertas);
 });
 

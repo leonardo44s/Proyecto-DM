@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const auth = require("../middlewares/auth");
 const Reservation = require("../models/Reservation");
-const Offer = require("../models/Offer");
+const Offer = require("../models/offer");
 const Notification = require("../models/Notification");
 
 // Crear reserva - SOLO cliente

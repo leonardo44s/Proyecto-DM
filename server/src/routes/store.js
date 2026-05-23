@@ -3,11 +3,37 @@ const router = express.Router();
 const Store = require("../models/Store");
 const auth = require("../middlewares/auth");
 const roleGuard = require("../middlewares/roleGuard");
+const { geocodeAddress } = require("../utils/geocoder");
 
 // Create
 router.post("/", auth, roleGuard("merchant"), async (req, res) => {
   try {
-    const s = new Store({ ...req.body, usuario: req.user.id });
+    let { coords, direccion, ...rest } = req.body;
+    let parsedCoords = null;
+
+    if (coords) {
+      if (Array.isArray(coords)) {
+        parsedCoords = { type: "Point", coordinates: coords };
+      } else if (typeof coords === "object" && coords.coordinates) {
+        parsedCoords = coords;
+      }
+    }
+
+    // Si no pasaron coordenadas pero sí dirección, la buscamos por geocodificación
+    if (!parsedCoords && direccion) {
+      const storeCoords = await geocodeAddress(direccion);
+      parsedCoords = {
+        type: "Point",
+        coordinates: storeCoords
+      };
+    }
+
+    const s = new Store({
+      ...rest,
+      direccion,
+      coords: parsedCoords || { type: "Point", coordinates: [-76.5226, 3.4516] }, // Fallback Cali
+      usuario: req.user.id
+    });
     await s.save();
     res.status(201).json(s);
   } catch (err) {
@@ -23,12 +49,41 @@ router.get("/:id", async (req, res) => {
 
 // Update
 router.put("/:id", auth, roleGuard("merchant"), async (req, res) => {
-  const store = await Store.findOneAndUpdate(
-    { _id: req.params.id, usuario: req.user.id },
-    req.body,
-    { new: true }
-  );
-  res.json(store);
+  try {
+    let { coords, direccion, ...rest } = req.body;
+    let parsedCoords = null;
+
+    if (coords) {
+      if (Array.isArray(coords)) {
+        parsedCoords = { type: "Point", coordinates: coords };
+      } else if (typeof coords === "object" && coords.coordinates) {
+        parsedCoords = coords;
+      }
+    }
+
+    // Si la dirección cambió y no pasaron nuevas coordenadas, la geocodificamos
+    if (!parsedCoords && direccion) {
+      const storeCoords = await geocodeAddress(direccion);
+      parsedCoords = {
+        type: "Point",
+        coordinates: storeCoords
+      };
+    }
+
+    const updateFields = { ...rest, direccion };
+    if (parsedCoords) {
+      updateFields.coords = parsedCoords;
+    }
+
+    const store = await Store.findOneAndUpdate(
+      { _id: req.params.id, usuario: req.user.id },
+      { $set: updateFields },
+      { new: true }
+    );
+    res.json(store);
+  } catch (err) {
+    res.status(400).json({ message: "Error al actualizar tienda", error: err });
+  }
 });
 
 // Delete

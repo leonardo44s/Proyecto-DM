@@ -94,11 +94,16 @@ export default function AppNavigator() {
 
   useEffect(() => {
     const check = async () => {
-      const token = await AsyncStorage.getItem("token");
-      const role = await AsyncStorage.getItem("rol");
-      setIsLogged(!!token);
-      setRol(role);
-      setLoading(false);
+      try {
+        const token = await AsyncStorage.getItem("token");
+        const role = await AsyncStorage.getItem("rol");
+        setIsLogged(!!token);
+        setRol(role);
+      } catch (err) {
+        console.error("Error cargando sesión:", err);
+      } finally {
+        setLoading(false);
+      }
     };
     check();
   }, []);

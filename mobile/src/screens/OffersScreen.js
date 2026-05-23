@@ -42,10 +42,27 @@ export default function OffersScreen() {
 
   const cargarProductos = useCallback(async () => {
     try {
-      const { data } = await api.get("/products", await getAuthHeader());
-      setProductos(data);
-    } catch  {
-      // No critico
+      const userData = await AsyncStorage.getItem("user");
+      if (!userData) return;
+      const user = JSON.parse(userData);
+
+      const resStores = await api.get("/stores", await getAuthHeader());
+      const stores = resStores.data;
+
+      const userId = user._id || user.id;
+      const myStore = stores.find(s => {
+        const storeUserId = typeof s.usuario === "object" && s.usuario !== null ? s.usuario._id : s.usuario;
+        return String(storeUserId) === String(userId);
+      });
+
+      if (myStore) {
+        const { data } = await api.get(`/products?store=${myStore._id}`, await getAuthHeader());
+        setProductos(data);
+      } else {
+        setProductos([]);
+      }
+    } catch (e) {
+      console.log("Error loading products for merchant:", e);
     }
   }, []);
 
