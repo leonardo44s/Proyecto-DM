@@ -1,9 +1,20 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { View, TextInput, FlatList, Text, Alert, Modal, Platform, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import {
+  View,
+  TextInput,
+  FlatList,
+  Text,
+  Alert,
+  Modal,
+  Platform,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  useColorScheme
+} from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../services/api";
-import { Picker } from "@react-native-picker/picker";
-
+import { Ionicons } from "@expo/vector-icons";
 
 export default function OffersScreen() {
   const [ofertas, setOfertas] = useState([]);
@@ -23,6 +34,23 @@ export default function OffersScreen() {
     descuento: "",
     producto: ""
   });
+  const [showProductModal, setShowProductModal] = useState(false);
+  const [showEditProductModal, setShowEditProductModal] = useState(false);
+
+  const isDark = useColorScheme() === "dark";
+  const colors = {
+    bg: isDark ? "#121212" : "#f5f5f5",
+    card: isDark ? "#1e1e1e" : "#ffffff",
+    text: isDark ? "#ffffff" : "#333333",
+    label: isDark ? "#cccccc" : "#555555",
+    subtext: isDark ? "#aaaaaa" : "#666666",
+    placeholder: isDark ? "#777777" : "#999999",
+    border: isDark ? "#333333" : "#dddddd",
+    inputBg: isDark ? "#2a2a2a" : "#fafafa",
+    modalOverlay: isDark ? "rgba(0,0,0,0.7)" : "rgba(0,0,0,0.5)",
+    primary: "#2E7D32",
+    white: "#ffffff",
+  };
 
   const getAuthHeader = async () => ({
     headers: { Authorization: "Bearer " + (await AsyncStorage.getItem("token")) }
@@ -71,13 +99,6 @@ export default function OffersScreen() {
     cargarProductos();
   }, [cargarOfertas, cargarProductos]);
 
-  /*
-  useFocusEffect(
-  useCallback(() => {
-    cargarProductos();   // <-- tu función que obtiene los productos del backend
-  }, [])
-);
-*/
   const showAlert = (msg, title = "Aviso") => {
     if (Platform.OS === "web") window.alert(msg);
     else Alert.alert(title, msg);
@@ -165,53 +186,55 @@ export default function OffersScreen() {
 
   if (loading && ofertas.length === 0) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2E7D32" />
-        <Text style={styles.loadingText}>Cargando ofertas...</Text>
+      <View style={[styles.loadingContainer, { backgroundColor: colors.bg }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={[styles.loadingText, { color: colors.subtext }]}>Cargando ofertas...</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Mis Ofertas</Text>
+    <View style={[styles.container, { backgroundColor: colors.bg }]}>
+      <Text style={[styles.title, { color: colors.primary }]}>Mis Ofertas</Text>
 
       {/* Formulario de creacion */}
-      <View style={styles.formContainer}>
-        <Text style={styles.sectionTitle}>Crear nueva oferta</Text>
+      <View style={[styles.formContainer, { backgroundColor: colors.card }]}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Crear nueva oferta</Text>
         <TextInput
           placeholder="Titulo de la oferta *"
+          placeholderTextColor={colors.placeholder}
           value={form.titulo}
           onChangeText={v => setForm(f => ({ ...f, titulo: v }))}
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
         />
         <TextInput
           placeholder="Descripcion *"
+          placeholderTextColor={colors.placeholder}
           value={form.descripcion}
           onChangeText={v => setForm(f => ({ ...f, descripcion: v }))}
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
           multiline
         />
         <TextInput
           placeholder="Descuento (%) *"
+          placeholderTextColor={colors.placeholder}
           value={form.descuento}
           onChangeText={v => setForm(f => ({ ...f, descuento: v.replace(/[^0-9]/g, "") }))}
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
           keyboardType="numeric"
         />
-        <Text style={styles.label}>Producto a ofertar:</Text>
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={form.producto}
-            onValueChange={v => setForm(f => ({ ...f, producto: v }))}
-            style={styles.picker}
-          >
-            <Picker.Item label="Selecciona un producto..." value="" />
-            {productos.map(p =>
-              <Picker.Item key={p._id} label={p.nombre} value={p._id} />
-            )}
-          </Picker>
-        </View>
+        <Text style={[styles.label, { color: colors.label }]}>Producto a ofertar:</Text>
+        <TouchableOpacity
+          style={[styles.selectButton, { backgroundColor: colors.inputBg, borderColor: colors.border }]}
+          onPress={() => setShowProductModal(true)}
+        >
+          <Text style={[styles.selectButtonText, { color: colors.text }]}>
+            {form.producto
+              ? productos.find(p => p._id === form.producto)?.nombre || "Producto seleccionado"
+              : "Selecciona un producto..."}
+          </Text>
+          <Ionicons name="chevron-down" size={20} color={colors.subtext} />
+        </TouchableOpacity>
         <TouchableOpacity style={styles.createButton} onPress={crear}>
           <Text style={styles.createButtonText}>Crear Oferta</Text>
         </TouchableOpacity>
@@ -225,47 +248,49 @@ export default function OffersScreen() {
         onRequestClose={() => setEditModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Editar Oferta</Text>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Editar Oferta</Text>
             <TextInput
               placeholder="Titulo de la oferta *"
+              placeholderTextColor={colors.placeholder}
               value={editForm.titulo}
               onChangeText={v => setEditForm(f => ({ ...f, titulo: v }))}
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
             />
             <TextInput
               placeholder="Descripcion *"
+              placeholderTextColor={colors.placeholder}
               value={editForm.descripcion}
               onChangeText={v => setEditForm(f => ({ ...f, descripcion: v }))}
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
               multiline
             />
             <TextInput
               placeholder="Descuento (%) *"
+              placeholderTextColor={colors.placeholder}
               value={editForm.descuento}
               onChangeText={v => setEditForm(f => ({ ...f, descuento: v.replace(/[^0-9]/g, "") }))}
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
               keyboardType="numeric"
             />
-            <Text style={styles.label}>Producto:</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={editForm.producto}
-                onValueChange={v => setEditForm(f => ({ ...f, producto: v }))}
-                style={styles.picker}
-              >
-                <Picker.Item label="Selecciona un producto..." value="" />
-                {productos.map(p =>
-                  <Picker.Item key={p._id} label={p.nombre} value={p._id} />
-                )}
-              </Picker>
-            </View>
+            <Text style={[styles.label, { color: colors.label, marginBottom: 8 }]}>Producto:</Text>
+            <TouchableOpacity
+              style={[styles.selectButton, { backgroundColor: colors.inputBg, borderColor: colors.border, marginBottom: 16 }]}
+              onPress={() => setShowEditProductModal(true)}
+            >
+              <Text style={[styles.selectButtonText, { color: colors.text }]}>
+                {editForm.producto
+                  ? productos.find(p => p._id === editForm.producto)?.nombre || "Producto seleccionado"
+                  : "Selecciona un producto..."}
+              </Text>
+              <Ionicons name="chevron-down" size={20} color={colors.subtext} />
+            </TouchableOpacity>
             <View style={styles.modalButtons}>
               <TouchableOpacity style={styles.saveButton} onPress={actualizarOferta}>
                 <Text style={styles.saveButtonText}>Guardar</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.cancelButton} onPress={() => setEditModal(false)}>
-                <Text style={styles.cancelButtonText}>Cancelar</Text>
+                <Text style={[styles.cancelButtonText, { color: isDark ? colors.text : "#333" }]}>Cancelar</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -273,26 +298,26 @@ export default function OffersScreen() {
       </Modal>
 
       {/* Lista de ofertas */}
-      <Text style={styles.sectionTitle}>Listado de ofertas ({ofertas.length})</Text>
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>Listado de ofertas ({ofertas.length})</Text>
       {ofertas.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No tienes ofertas registradas</Text>
-          <Text style={styles.emptySubtext}>Primero crea productos, luego podras crear ofertas</Text>
+          <Text style={[styles.emptyText, { color: colors.subtext }]}>No tienes ofertas registradas</Text>
+          <Text style={[styles.emptySubtext, { color: colors.placeholder }]}>Primero crea productos, luego podras crear ofertas</Text>
         </View>
       ) : (
         <FlatList
           data={ofertas}
           keyExtractor={item => item._id}
           renderItem={({ item }) => (
-            <View style={styles.offerCard}>
+            <View style={[styles.offerCard, { backgroundColor: colors.card }]}>
               <View style={styles.offerHeader}>
-                <Text style={styles.offerTitle}>{item.titulo}</Text>
+                <Text style={[styles.offerTitle, { color: colors.text }]}>{item.titulo}</Text>
                 <View style={styles.discountBadge}>
                   <Text style={styles.discountText}>{item.descuento}% OFF</Text>
                 </View>
               </View>
-              <Text style={styles.offerDesc}>{item.descripcion}</Text>
-              <Text style={styles.offerProduct}>
+              <Text style={[styles.offerDesc, { color: colors.subtext }]}>{item.descripcion}</Text>
+              <Text style={[styles.offerProduct, { color: colors.placeholder }]}>
                 Producto: {item.producto?.nombre || "No especificado"}
               </Text>
               <View style={styles.offerActions}>
@@ -307,6 +332,121 @@ export default function OffersScreen() {
           )}
         />
       )}
+
+      {/* Modal para seleccionar producto en formulario de creación */}
+      <Modal
+        visible={showProductModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowProductModal(false)}
+      >
+        <View style={styles.selectModalOverlay}>
+          <View style={[styles.selectModalContent, { backgroundColor: colors.card }]}>
+            <View style={styles.selectModalHeader}>
+              <Text style={[styles.selectModalTitle, { color: colors.text }]}>Selecciona un Producto</Text>
+              <TouchableOpacity onPress={() => setShowProductModal(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            
+            {productos.length === 0 ? (
+              <View style={styles.selectModalEmpty}>
+                <Text style={[styles.selectModalEmptyText, { color: colors.subtext }]}>No tienes productos creados.</Text>
+                <Text style={[styles.selectModalEmptySubtext, { color: colors.placeholder }]}>Crea productos primero en la sección "Mis Productos".</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={productos}
+                keyExtractor={item => item._id}
+                style={styles.selectProductList}
+                contentContainerStyle={styles.selectProductListContent}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[
+                      styles.selectProductOption,
+                      form.producto === item._id && { backgroundColor: isDark ? "rgba(46, 125, 50, 0.2)" : "#E8F5E9", borderRadius: 8 }
+                    ]}
+                    onPress={() => {
+                      setForm(f => ({ ...f, producto: item._id }));
+                      setShowProductModal(false);
+                    }}
+                  >
+                    <Text style={[
+                      styles.selectProductOptionText,
+                      { color: colors.text },
+                      form.producto === item._id && { color: colors.primary, fontWeight: "bold" }
+                    ]}>
+                      {item.nombre}
+                    </Text>
+                    {item.precioBase > 0 && (
+                      <Text style={[styles.selectProductOptionPrice, { color: colors.placeholder }]}>
+                        Precio base: ${item.precioBase.toFixed(2)}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal para seleccionar producto en formulario de edición */}
+      <Modal
+        visible={showEditProductModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowEditProductModal(false)}
+      >
+        <View style={styles.selectModalOverlay}>
+          <View style={[styles.selectModalContent, { backgroundColor: colors.card }]}>
+            <View style={styles.selectModalHeader}>
+              <Text style={[styles.selectModalTitle, { color: colors.text }]}>Selecciona un Producto</Text>
+              <TouchableOpacity onPress={() => setShowEditProductModal(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            
+            {productos.length === 0 ? (
+              <View style={styles.selectModalEmpty}>
+                <Text style={[styles.selectModalEmptyText, { color: colors.subtext }]}>No tienes productos creados.</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={productos}
+                keyExtractor={item => item._id}
+                style={styles.selectProductList}
+                contentContainerStyle={styles.selectProductListContent}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[
+                      styles.selectProductOption,
+                      editForm.producto === item._id && { backgroundColor: isDark ? "rgba(46, 125, 50, 0.2)" : "#E8F5E9", borderRadius: 8 }
+                    ]}
+                    onPress={() => {
+                      setEditForm(f => ({ ...f, producto: item._id }));
+                      setShowEditProductModal(false);
+                    }}
+                  >
+                    <Text style={[
+                      styles.selectProductOptionText,
+                      { color: colors.text },
+                      editForm.producto === item._id && { color: colors.primary, fontWeight: "bold" }
+                    ]}>
+                      {item.nombre}
+                    </Text>
+                    {item.precioBase > 0 && (
+                      <Text style={[styles.selectProductOptionPrice, { color: colors.placeholder }]}>
+                        Precio base: ${item.precioBase.toFixed(2)}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -315,33 +455,27 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
-    backgroundColor: "#f5f5f5",
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f5f5f5",
   },
   loadingText: {
     marginTop: 10,
-    color: "#666",
   },
   title: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#2E7D32",
     marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#333",
     marginBottom: 12,
     marginTop: 8,
   },
   formContainer: {
-    backgroundColor: "#fff",
     padding: 16,
     borderRadius: 12,
     marginBottom: 16,
@@ -353,28 +487,14 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: "#ddd",
     borderRadius: 8,
     padding: 12,
     marginBottom: 12,
-    backgroundColor: "#fafafa",
     fontSize: 16,
   },
   label: {
     fontSize: 14,
-    color: "#666",
     marginBottom: 8,
-  },
-  pickerContainer: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    marginBottom: 12,
-    backgroundColor: "#fafafa",
-    overflow: "hidden",
-  },
-  picker: {
-    height: 50,
   },
   createButton: {
     backgroundColor: "#2E7D32",
@@ -388,7 +508,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   offerCard: {
-    backgroundColor: "#fff",
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
@@ -407,7 +526,6 @@ const styles = StyleSheet.create({
   offerTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#333",
     flex: 1,
   },
   discountBadge: {
@@ -423,12 +541,10 @@ const styles = StyleSheet.create({
   },
   offerDesc: {
     fontSize: 14,
-    color: "#666",
     marginBottom: 8,
   },
   offerProduct: {
     fontSize: 14,
-    color: "#888",
     marginBottom: 12,
   },
   offerActions: {
@@ -463,12 +579,10 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: "#666",
     textAlign: "center",
   },
   emptySubtext: {
     fontSize: 14,
-    color: "#999",
     textAlign: "center",
     marginTop: 8,
   },
@@ -479,7 +593,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modalContent: {
-    backgroundColor: "#fff",
     padding: 24,
     borderRadius: 16,
     width: "90%",
@@ -489,12 +602,11 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
     marginBottom: 16,
-    color: "#333",
   },
   modalButtons: {
     flexDirection: "row",
     gap: 12,
-    marginTop: 8,
+    marginTop: 16,
   },
   saveButton: {
     flex: 1,
@@ -515,7 +627,81 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cancelButtonText: {
-    color: "#333",
     fontWeight: "600",
+  },
+  selectButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+  },
+  selectButtonText: {
+    fontSize: 16,
+  },
+  selectModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  selectModalContent: {
+    padding: 24,
+    borderRadius: 16,
+    width: "85%",
+    maxWidth: 360,
+    maxHeight: "70%",
+    minHeight: 180,
+    display: "flex",
+    flexDirection: "column",
+  },
+  selectModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+    paddingBottom: 10,
+  },
+  selectModalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  selectModalEmpty: {
+    padding: 24,
+    alignItems: "center",
+  },
+  selectModalEmptyText: {
+    fontSize: 15,
+    textAlign: "center",
+  },
+  selectModalEmptySubtext: {
+    fontSize: 13,
+    textAlign: "center",
+    marginTop: 8,
+  },
+  selectProductOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f9f9f9",
+  },
+  selectProductOptionText: {
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  selectProductOptionPrice: {
+    fontSize: 13,
+    marginTop: 4,
+  },
+  selectProductList: {
+    flexGrow: 1,
+    width: "100%",
+  },
+  selectProductListContent: {
+    flexGrow: 1,
   },
 });

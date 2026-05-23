@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { View, Text, FlatList, TouchableOpacity, Alert, Platform, StyleSheet, ActivityIndicator, RefreshControl } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, Alert, Platform, StyleSheet, ActivityIndicator, RefreshControl, useColorScheme } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../services/api";
 
@@ -15,6 +15,19 @@ export default function ReservasComercianteScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [procesando, setProcesando] = useState(null);
+
+  const isDark = useColorScheme() === "dark";
+  const colors = {
+    bg: isDark ? "#121212" : "#f5f5f5",
+    card: isDark ? "#1e1e1e" : "#ffffff",
+    text: isDark ? "#ffffff" : "#333333",
+    subtext: isDark ? "#aaaaaa" : "#666666",
+    placeholder: isDark ? "#777777" : "#999999",
+    border: isDark ? "#333333" : "#dddddd",
+    clientInfoBg: isDark ? "rgba(25, 118, 210, 0.15)" : "#E3F2FD",
+    notasBg: isDark ? "rgba(245, 124, 0, 0.15)" : "#FFF8E1",
+    primary: "#2E7D32",
+  };
 
   const getAuthHeader = async () => ({
     headers: { Authorization: "Bearer " + (await AsyncStorage.getItem("token")) }
@@ -89,22 +102,22 @@ export default function ReservasComercianteScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: colors.bg }]}>
         <ActivityIndicator size="large" color="#2E7D32" />
-        <Text style={styles.loadingText}>Cargando reservas recibidas...</Text>
+        <Text style={[styles.loadingText, { color: colors.subtext }]}>Cargando reservas recibidas...</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Reservas Recibidas</Text>
-      <Text style={styles.subtitle}>Gestiona las reservas de tus clientes</Text>
+    <View style={[styles.container, { backgroundColor: colors.bg }]}>
+      <Text style={[styles.title, { color: colors.primary }]}>Reservas Recibidas</Text>
+      <Text style={[styles.subtitle, { color: colors.subtext }]}>Gestiona las reservas de tus clientes</Text>
 
       {reservas.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No tienes reservas</Text>
-          <Text style={styles.emptySubtext}>Cuando un cliente reserve una de tus ofertas, aparecera aqui</Text>
+          <Text style={[styles.emptyText, { color: colors.subtext }]}>No tienes reservas</Text>
+          <Text style={[styles.emptySubtext, { color: colors.placeholder }]}>Cuando un cliente reserve una de tus ofertas, aparecera aqui</Text>
         </View>
       ) : (
         <FlatList
@@ -117,7 +130,7 @@ export default function ReservasComercianteScreen() {
           ListHeaderComponent={
             pendientes.length > 0 ? (
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Pendientes ({pendientes.length})</Text>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Pendientes ({pendientes.length})</Text>
               </View>
             ) : null
           }
@@ -129,11 +142,12 @@ export default function ReservasComercianteScreen() {
               <View>
                 {esPrimerHistorial && (
                   <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>Historial ({otras.length})</Text>
+                    <Text style={[styles.sectionTitle, { color: colors.text }]}>Historial ({otras.length})</Text>
                   </View>
                 )}
                 <View style={[
                   styles.reservaCard,
+                  { backgroundColor: colors.card },
                   item.estado === "pendiente" && styles.reservaPendiente
                 ]}>
                   <View style={styles.cardHeader}>
@@ -142,7 +156,7 @@ export default function ReservasComercianteScreen() {
                         {estadoInfo.label}
                       </Text>
                     </View>
-                    <Text style={styles.fecha}>
+                    <Text style={[styles.fecha, { color: colors.placeholder }]}>
                       {item.fecha ? new Date(item.fecha).toLocaleDateString("es-ES", {
                         day: "numeric",
                         month: "short",
@@ -152,20 +166,20 @@ export default function ReservasComercianteScreen() {
                   </View>
 
                   {/* Informacion del cliente */}
-                  <View style={styles.clienteInfo}>
-                    <Text style={styles.clienteLabel}>Cliente:</Text>
-                    <Text style={styles.clienteNombre}>
+                  <View style={[styles.clienteInfo, { backgroundColor: colors.clientInfoBg }]}>
+                    <Text style={[styles.clienteLabel, { color: isDark ? "#90CAF9" : "#1976D2" }]}>Cliente:</Text>
+                    <Text style={[styles.clienteNombre, { color: colors.text }]}>
                       {item.usuario?.nombre || "Cliente desconocido"}
                     </Text>
                     {item.usuario?.email && (
-                      <Text style={styles.clienteEmail}>{item.usuario.email}</Text>
+                      <Text style={[styles.clienteEmail, { color: colors.subtext }]}>{item.usuario.email}</Text>
                     )}
                   </View>
 
                   {/* Informacion de la oferta */}
                   <View style={styles.ofertaInfo}>
-                    <Text style={styles.ofertaLabel}>Oferta:</Text>
-                    <Text style={styles.ofertaTitulo}>
+                    <Text style={[styles.ofertaLabel, { color: colors.placeholder }]}>Oferta:</Text>
+                    <Text style={[styles.ofertaTitulo, { color: colors.text }]}>
                       {item.oferta?.titulo || "Oferta no disponible"}
                     </Text>
                     {item.oferta?.descuento && (
@@ -176,16 +190,16 @@ export default function ReservasComercianteScreen() {
                   {/* Producto */}
                   {item.oferta?.producto && (
                     <View style={styles.productoInfo}>
-                      <Text style={styles.productoLabel}>Producto:</Text>
-                      <Text style={styles.productoNombre}>{item.oferta.producto.nombre}</Text>
+                      <Text style={[styles.productoLabel, { color: colors.placeholder }]}>Producto:</Text>
+                      <Text style={[styles.productoNombre, { color: colors.text }]}>{item.oferta.producto.nombre}</Text>
                     </View>
                   )}
 
                   {/* Notas del cliente */}
                   {item.notas && (
-                    <View style={styles.notasContainer}>
-                      <Text style={styles.notasLabel}>Notas del cliente:</Text>
-                      <Text style={styles.notasText}>{item.notas}</Text>
+                    <View style={[styles.notasContainer, { backgroundColor: colors.notasBg }]}>
+                      <Text style={[styles.notasLabel, { color: isDark ? "#FFB74D" : "#F57C00" }]}>Notas del cliente:</Text>
+                      <Text style={[styles.notasText, { color: colors.subtext }]}>{item.notas}</Text>
                     </View>
                   )}
 
@@ -202,7 +216,7 @@ export default function ReservasComercianteScreen() {
                         </Text>
                       </TouchableOpacity>
                       <TouchableOpacity 
-                        style={[styles.rejectButton, procesando === item._id && styles.buttonDisabled]} 
+                        style={[styles.rejectButton, procesando === item._id && styles.buttonDisabled, { backgroundColor: isDark ? "#1e1e1e" : "#fff" }]} 
                         onPress={() => confirmarAccion(item, "rechazada")}
                         disabled={procesando === item._id}
                       >

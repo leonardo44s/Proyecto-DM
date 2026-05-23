@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet, Platform, KeyboardAvoidingView, ScrollView } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet, Platform, KeyboardAvoidingView, ScrollView, useColorScheme } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../services/api";
 
@@ -7,6 +7,20 @@ export default function LoginScreen({ navigation, onLogin }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const isDark = useColorScheme() === "dark";
+  const colors = {
+    bg: isDark ? "#121212" : "#f5f5f5",
+    card: isDark ? "#1e1e1e" : "#ffffff",
+    text: isDark ? "#ffffff" : "#333333",
+    label: isDark ? "#cccccc" : "#555555",
+    subtext: isDark ? "#aaaaaa" : "#666666",
+    placeholder: isDark ? "#777777" : "#999999",
+    border: isDark ? "#333333" : "#dddddd",
+    inputBg: isDark ? "#2a2a2a" : "#fafafa",
+    divider: isDark ? "#333333" : "#dddddd",
+    primary: "#2E7D32",
+  };
 
   const showAlert = (msg, title = "Aviso") => {
     if (Platform.OS === "web") window.alert(msg);
@@ -36,35 +50,37 @@ export default function LoginScreen({ navigation, onLogin }) {
 
   return (
     <KeyboardAvoidingView 
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.bg }]}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
-          <Text style={styles.appName}>Anti-Caducidad</Text>
-          <Text style={styles.tagline}>Reduce el desperdicio, ahorra dinero</Text>
+          <Text style={[styles.appName, { color: colors.primary }]}>Anti-Caducidad</Text>
+          <Text style={[styles.tagline, { color: colors.subtext }]}>Reduce el desperdicio, ahorra dinero</Text>
         </View>
 
-        <View style={styles.formCard}>
-          <Text style={styles.titulo}>Iniciar sesion</Text>
+        <View style={[styles.formCard, { backgroundColor: colors.card }]}>
+          <Text style={[styles.titulo, { color: colors.text }]}>Iniciar sesion</Text>
           
-          <Text style={styles.label}>Correo electronico</Text>
+          <Text style={[styles.label, { color: colors.label }]}>Correo electronico</Text>
           <TextInput
             value={email}
             onChangeText={setEmail}
             placeholder="tu@correo.com"
-            style={styles.input}
+            placeholderTextColor={colors.placeholder}
+            style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
             autoCapitalize="none"
             keyboardType="email-address"
             autoComplete="email"
           />
           
-          <Text style={styles.label}>Contrasena</Text>
+          <Text style={[styles.label, { color: colors.label }]}>Contrasena</Text>
           <TextInput
             value={password}
             onChangeText={setPassword}
             placeholder="Tu contrasena"
-            style={styles.input}
+            placeholderTextColor={colors.placeholder}
+            style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
             secureTextEntry
             autoComplete="password"
           />
@@ -80,9 +96,9 @@ export default function LoginScreen({ navigation, onLogin }) {
           </TouchableOpacity>
 
           <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>o</Text>
-            <View style={styles.dividerLine} />
+            <View style={[styles.dividerLine, { backgroundColor: colors.divider }]} />
+            <Text style={[styles.dividerText, { color: colors.placeholder }]}>o</Text>
+            <View style={[styles.dividerLine, { backgroundColor: colors.divider }]} />
           </View>
 
           <TouchableOpacity 
@@ -93,7 +109,7 @@ export default function LoginScreen({ navigation, onLogin }) {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.footer}>
+        <Text style={[styles.footer, { color: colors.placeholder }]}>
           Al iniciar sesion aceptas nuestros terminos y condiciones
         </Text>
       </ScrollView>

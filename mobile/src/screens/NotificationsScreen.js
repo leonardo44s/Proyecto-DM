@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, Alert, Platform } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, Alert, Platform, useColorScheme } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../services/api";
 
@@ -8,6 +8,17 @@ export default function NotificationsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [rol, setRol] = useState("");
+
+  const isDark = useColorScheme() === "dark";
+  const colors = {
+    bg: isDark ? "#121212" : "#f5f5f5",
+    card: isDark ? "#1e1e1e" : "#ffffff",
+    text: isDark ? "#ffffff" : "#333333",
+    subtext: isDark ? "#aaaaaa" : "#666666",
+    placeholder: isDark ? "#777777" : "#999999",
+    border: isDark ? "#333333" : "#dddddd",
+    buttonBg: isDark ? "#2c2c2c" : "#f0f0f0",
+  };
 
   const getAuthHeader = async () => ({
     headers: { Authorization: "Bearer " + (await AsyncStorage.getItem("token")) }
@@ -74,35 +85,35 @@ export default function NotificationsScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: colors.bg }]}>
         <ActivityIndicator size="large" color={rol === "merchant" ? "#2E7D32" : "#1976D2"} />
-        <Text style={styles.loadingText}>Cargando notificaciones...</Text>
+        <Text style={[styles.loadingText, { color: colors.subtext }]}>Cargando notificaciones...</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.bg }]}>
       <View style={styles.header}>
         <View>
           <Text style={[styles.title, { color: rol === "merchant" ? "#2E7D32" : "#1976D2" }]}>
             Notificaciones
           </Text>
-          <Text style={styles.subtitle}>
+          <Text style={[styles.subtitle, { color: colors.subtext }]}>
             {noLeidas > 0 ? `${noLeidas} sin leer` : "Todas leidas"}
           </Text>
         </View>
         {noLeidas > 0 && (
-          <TouchableOpacity style={styles.markAllButton} onPress={marcarTodasLeidas}>
-            <Text style={styles.markAllText}>Marcar todas</Text>
+          <TouchableOpacity style={[styles.markAllButton, { backgroundColor: colors.buttonBg }]} onPress={marcarTodasLeidas}>
+            <Text style={[styles.markAllText, { color: colors.text }]}>Marcar todas</Text>
           </TouchableOpacity>
         )}
       </View>
 
       {notificaciones.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No tienes notificaciones</Text>
-          <Text style={styles.emptySubtext}>
+          <Text style={[styles.emptyText, { color: colors.subtext }]}>No tienes notificaciones</Text>
+          <Text style={[styles.emptySubtext, { color: colors.placeholder }]}>
             {rol === "merchant" 
               ? "Recibiras notificaciones cuando un cliente reserve tus ofertas"
               : "Recibiras notificaciones sobre tus reservas y nuevas ofertas"
@@ -125,6 +136,7 @@ export default function NotificationsScreen() {
             <TouchableOpacity 
               style={[
                 styles.notificationCard,
+                { backgroundColor: colors.card },
                 !item.leida && styles.notificationUnread,
                 !item.leida && (rol === "merchant" ? styles.unreadMerchant : styles.unreadCustomer)
               ]}
@@ -139,10 +151,10 @@ export default function NotificationsScreen() {
                   ]} />
                 )}
                 <View style={styles.messageContainer}>
-                  <Text style={[styles.message, !item.leida && styles.messageUnread]}>
+                  <Text style={[styles.message, { color: colors.subtext }, !item.leida && styles.messageUnread, !item.leida && { color: colors.text }]}>
                     {item.mensaje}
                   </Text>
-                  <Text style={styles.fecha}>
+                  <Text style={[styles.fecha, { color: colors.placeholder }]}>
                     {item.createdAt 
                       ? formatearFecha(new Date(item.createdAt))
                       : "Fecha desconocida"
@@ -151,7 +163,7 @@ export default function NotificationsScreen() {
                 </View>
               </View>
               {!item.leida && (
-                <Text style={styles.tapHint}>Toca para marcar como leida</Text>
+                <Text style={[styles.tapHint, { color: colors.placeholder }]}>Toca para marcar como leida</Text>
               )}
             </TouchableOpacity>
           )}

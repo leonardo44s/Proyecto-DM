@@ -36,7 +36,7 @@ export default function InteractiveMap({
         var storeMarker = L.marker([${lat}, ${lng}], {
           icon: L.divIcon({
             className: 'custom-store-icon ${isSelected ? "selected" : ""}',
-            html: '<div class="pin">🏪</div>',
+            html: '<div class="pulse-ripple"></div><div class="pin">🏪</div>',
             iconSize: [30, 30]
           })
         }).addTo(map);
@@ -86,6 +86,7 @@ export default function InteractiveMap({
           font-size: 14px;
           border: 2px solid white;
           box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+          animation: floatPin 2.4s ease-in-out infinite;
         }
         /* Rotar el emoji de vuelta */
         .pin::before {
@@ -100,6 +101,22 @@ export default function InteractiveMap({
           margin: -19px 0 0 -19px;
           font-size: 16px;
         }
+        .pulse-ripple {
+          position: absolute;
+          width: 30px;
+          height: 30px;
+          border-radius: 50%;
+          background: rgba(46, 125, 50, 0.4);
+          animation: ripple 2s infinite ease-out;
+          pointer-events: none;
+          z-index: -1;
+          left: 50%;
+          top: 50%;
+          margin: -15px 0 0 -15px;
+        }
+        .custom-store-icon.selected .pulse-ripple {
+          background: rgba(255, 87, 34, 0.4);
+        }
         .user-pin {
           width: 14px;
           height: 14px;
@@ -107,6 +124,24 @@ export default function InteractiveMap({
           background: #1976D2;
           border: 2px solid white;
           box-shadow: 0 0 0 4px rgba(25, 118, 210, 0.4);
+        }
+        @keyframes floatPin {
+          0%, 100% {
+            transform: translate(0, 0) rotate(-45deg);
+          }
+          50% {
+            transform: translate(0, -6px) rotate(-45deg);
+          }
+        }
+        @keyframes ripple {
+          0% {
+            transform: scale(0.8);
+            opacity: 0.8;
+          }
+          100% {
+            transform: scale(2.2);
+            opacity: 0;
+          }
         }
       </style>
     </head>

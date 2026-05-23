@@ -1,7 +1,8 @@
 // src/navigation/AppNavigator.js
 import React, { useEffect, useState } from "react";
+import { useColorScheme } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { NavigationContainer } from "@react-navigation/native";
+import { NavigationContainer, DefaultTheme, DarkTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createDrawerNavigator } from "@react-navigation/drawer";
 
@@ -19,6 +20,7 @@ const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
 
 function DrawerComerciante({ onLogout }) {
+  const isDark = useColorScheme() === "dark";
   return (
     <Drawer.Navigator 
       initialRouteName="Productos"
@@ -26,6 +28,11 @@ function DrawerComerciante({ onLogout }) {
         headerStyle: { backgroundColor: '#2E7D32' },
         headerTintColor: '#fff',
         drawerActiveTintColor: '#2E7D32',
+        drawerActiveBackgroundColor: isDark ? 'rgba(46, 125, 50, 0.2)' : '#E8F5E9',
+        drawerInactiveTintColor: isDark ? '#bbb' : '#666',
+        drawerStyle: {
+          backgroundColor: isDark ? '#1e1e1e' : '#fff',
+        },
       }}
     >
       <Drawer.Screen 
@@ -56,6 +63,7 @@ function DrawerComerciante({ onLogout }) {
 }
 
 function DrawerCliente({ onLogout }) {
+  const isDark = useColorScheme() === "dark";
   return (
     <Drawer.Navigator 
       initialRouteName="Ofertas"
@@ -63,6 +71,11 @@ function DrawerCliente({ onLogout }) {
         headerStyle: { backgroundColor: '#1976D2' },
         headerTintColor: '#fff',
         drawerActiveTintColor: '#1976D2',
+        drawerActiveBackgroundColor: isDark ? 'rgba(25, 118, 210, 0.2)' : '#E3F2FD',
+        drawerInactiveTintColor: isDark ? '#bbb' : '#666',
+        drawerStyle: {
+          backgroundColor: isDark ? '#1e1e1e' : '#fff',
+        },
       }}
     >
       <Drawer.Screen 
@@ -122,12 +135,17 @@ export default function AppNavigator() {
     setRol(null);
   };
 
+  const isDark = useColorScheme() === "dark";
+
   if (loading) return null;
 
   return (
-    <NavigationContainer>
+    <NavigationContainer theme={isDark ? DarkTheme : DefaultTheme}>
       {!isLogged ? (
-        <Stack.Navigator>
+        <Stack.Navigator screenOptions={{
+          headerStyle: { backgroundColor: isDark ? '#1e1e1e' : '#fff' },
+          headerTintColor: isDark ? '#fff' : '#000',
+        }}>
           <Stack.Screen name="Iniciar sesion">
             {(props) => <LoginScreen {...props} onLogin={handleLogin} />}
           </Stack.Screen>

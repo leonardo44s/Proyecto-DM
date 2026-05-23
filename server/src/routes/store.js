@@ -3,12 +3,15 @@ const router = express.Router();
 const Store = require("../models/Store");
 const auth = require("../middlewares/auth");
 const roleGuard = require("../middlewares/roleGuard");
-const { geocodeAddress } = require("../utils/geocoder");
+const { geocodeAddress, normalizeAddress } = require("../utils/geocoder");
 
 // Create
 router.post("/", auth, roleGuard("merchant"), async (req, res) => {
   try {
     let { coords, direccion, ...rest } = req.body;
+    if (direccion) {
+      direccion = normalizeAddress(direccion);
+    }
     let parsedCoords = null;
 
     if (coords) {
@@ -51,6 +54,9 @@ router.get("/:id", async (req, res) => {
 router.put("/:id", auth, roleGuard("merchant"), async (req, res) => {
   try {
     let { coords, direccion, ...rest } = req.body;
+    if (direccion) {
+      direccion = normalizeAddress(direccion);
+    }
     let parsedCoords = null;
 
     if (coords) {

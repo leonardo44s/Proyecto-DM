@@ -4,7 +4,7 @@ const User = require("../models/User");
 const Store = require("../models/Store");
 const jwt = require("jsonwebtoken");
 const auth = require("../middlewares/auth");
-const { geocodeAddress } = require("../utils/geocoder");
+const { geocodeAddress, normalizeAddress } = require("../utils/geocoder");
 
 router.post("/register", async (req, res) => {
   try {
@@ -13,6 +13,10 @@ router.post("/register", async (req, res) => {
     // Mapear roles del español al inglés
     if (rol === "cliente") rol = "customer";
     if (rol === "comerciante") rol = "merchant";
+    
+    if (rest.direccion) {
+      rest.direccion = normalizeAddress(rest.direccion);
+    }
     
     const u = new User({ ...rest, rol });
     await u.save();
@@ -109,7 +113,7 @@ router.put("/profile", auth, async (req, res) => {
     const updates = {};
     if (nombre !== undefined) updates.nombre = nombre;
     if (phone !== undefined) updates.phone = phone;
-    if (direccion !== undefined) updates.direccion = direccion;
+    if (direccion !== undefined) updates.direccion = normalizeAddress(direccion);
 
     const user = await User.findByIdAndUpdate(
       req.user.id,

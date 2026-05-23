@@ -1,7 +1,88 @@
-import React from "react";
-import { View, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { View, StyleSheet, TouchableOpacity, ActivityIndicator, Animated } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 import { Ionicons } from "@expo/vector-icons";
+
+function PulsingStoreMarker({ store, isSelected, onPress }) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Escala del pin (animación suave infinita)
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(scaleAnim, {
+          toValue: 1.15,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1.0,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Ondas/pulsos expansivos (efecto radar/ripple)
+    Animated.loop(
+      Animated.timing(pulseAnim, {
+        toValue: 1,
+        duration: 2000,
+        useNativeDriver: true,
+      })
+    ).start();
+  }, [scaleAnim, pulseAnim]);
+
+  const [lng, lat] = store.coords.coordinates;
+  const markerColor = isSelected ? "#FF5722" : "#2E7D32";
+
+  const pulseScale = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 2.2],
+  });
+
+  const pulseOpacity = pulseAnim.interpolate({
+    inputRange: [0, 0.8, 1],
+    outputRange: [0.6, 0.2, 0],
+  });
+
+  return (
+    <Marker
+      coordinate={{ latitude: lat, longitude: lng }}
+      title={store.nombre}
+      description={store.direccion}
+      onPress={onPress}
+    >
+      <View style={styles.markerContainer}>
+        {/* Onda de pulso radar */}
+        <Animated.View
+          style={[
+            styles.pulseCircle,
+            {
+              backgroundColor: markerColor,
+              transform: [{ scale: pulseScale }],
+              opacity: pulseOpacity,
+            },
+          ]}
+        />
+        {/* Pin de tienda animado */}
+        <Animated.View
+          style={[
+            styles.storePin,
+            {
+              backgroundColor: markerColor,
+              transform: [{ scale: scaleAnim }],
+              borderColor: isSelected ? "#FFF" : "#E8F5E9",
+            },
+          ]}
+        >
+          <Ionicons name="storefront" size={15} color="#fff" />
+        </Animated.View>
+      </View>
+    </Marker>
+  );
+}
 
 export default function InteractiveMap({
   userCoords,
@@ -11,9 +92,9 @@ export default function InteractiveMap({
   onRecenter,
   locationLoading,
 }) {
-  const mapRef = React.useRef(null);
+  const mapRef = useRef(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (mapRef.current && userCoords) {
       mapRef.current.animateToRegion({
         latitude: userCoords.latitude,
@@ -58,12 +139,10 @@ export default function InteractiveMap({
           const isSelected = selectedStoreId === store._id;
 
           return (
-            <Marker
+            <PulsingStoreMarker
               key={store._id}
-              coordinate={{ latitude: lat, longitude: lng }}
-              title={store.nombre}
-              description={store.direccion}
-              pinColor={isSelected ? "#FF5722" : "#2E7D32"}
+              store={store}
+              isSelected={isSelected}
               onPress={() => onStorePress && onStorePress(store._id)}
             />
           );
@@ -120,5 +199,30 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+  },
+  markerContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 50,
+    height: 50,
+  },
+  pulseCircle: {
+    position: "absolute",
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
+  storePin: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 4,
   },
 });

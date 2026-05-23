@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   ActivityIndicator,
+  useColorScheme,
 } from "react-native";
 import * as Location from "expo-location";
 import { api } from "../services/api";
@@ -28,6 +29,23 @@ export default function RegisterScreen({ navigation }) {
   const [nombreTienda, setNombreTienda] = useState("");
   const [gpsLoading, setGpsLoading] = useState(false);
   const [coords, setCoords] = useState(null);
+
+  const isDark = useColorScheme() === "dark";
+  const colors = {
+    bg: isDark ? "#121212" : "#f5f5f5",
+    card: isDark ? "#1e1e1e" : "#ffffff",
+    text: isDark ? "#ffffff" : "#333333",
+    label: isDark ? "#cccccc" : "#555555",
+    subtext: isDark ? "#aaaaaa" : "#666666",
+    placeholder: isDark ? "#777777" : "#999999",
+    border: isDark ? "#333333" : "#dddddd",
+    inputBg: isDark ? "#2a2a2a" : "#fafafa",
+    helper: isDark ? "#aaaaaa" : "#888888",
+    infoBgCustomer: isDark ? "rgba(25, 118, 210, 0.15)" : "#E3F2FD",
+    infoBgMerchant: isDark ? "rgba(46, 125, 50, 0.15)" : "#E8F5E9",
+    infoTitle: isDark ? "#ffffff" : "#333333",
+    infoText: isDark ? "#dddddd" : "#555555",
+  };
 
   const showAlert = (msg, title = "Aviso") => {
     if (Platform.OS === "web") window.alert(msg);
@@ -125,26 +143,28 @@ export default function RegisterScreen({ navigation }) {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.bg }]}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <View style={styles.formCard}>
-          <Text style={styles.titulo}>Crear cuenta</Text>
-          <Text style={styles.subtitulo}>Únete a la comunidad Anti-Caducidad</Text>
+        <View style={[styles.formCard, { backgroundColor: colors.card }]}>
+          <Text style={[styles.titulo, { color: colors.text }]}>Crear cuenta</Text>
+          <Text style={[styles.subtitulo, { color: colors.subtext }]}>Únete a la comunidad Anti-Caducidad</Text>
 
-          <Text style={styles.label}>Nombre completo *</Text>
+          <Text style={[styles.label, { color: colors.label }]}>Nombre completo *</Text>
           <TextInput
             placeholder="Tu nombre"
-            style={styles.input}
+            placeholderTextColor={colors.placeholder}
+            style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
             value={nombre}
             onChangeText={setNombre}
           />
 
-          <Text style={styles.label}>Correo electrónico *</Text>
+          <Text style={[styles.label, { color: colors.label }]}>Correo electrónico *</Text>
           <TextInput
             placeholder="tu@correo.com"
-            style={styles.input}
+            placeholderTextColor={colors.placeholder}
+            style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
@@ -152,29 +172,32 @@ export default function RegisterScreen({ navigation }) {
             autoComplete="email"
           />
 
-          <Text style={styles.label}>Contraseña *</Text>
+          <Text style={[styles.label, { color: colors.label }]}>Contraseña *</Text>
           <TextInput
             placeholder="Mínimo 6 caracteres"
-            style={styles.input}
+            placeholderTextColor={colors.placeholder}
+            style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
           />
 
-          <Text style={styles.label}>Confirmar contraseña *</Text>
+          <Text style={[styles.label, { color: colors.label }]}>Confirmar contraseña *</Text>
           <TextInput
             placeholder="Repite tu contraseña"
-            style={styles.input}
+            placeholderTextColor={colors.placeholder}
+            style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             secureTextEntry
           />
 
-          <Text style={styles.label}>Tipo de cuenta</Text>
+          <Text style={[styles.label, { color: colors.label }]}>Tipo de cuenta</Text>
           <View style={styles.roleSelectorContainer}>
             <TouchableOpacity
               style={[
                 styles.roleOption,
+                { backgroundColor: colors.inputBg, borderColor: colors.border },
                 rol === "customer" && { backgroundColor: "#1976D2", borderColor: "#1976D2" },
               ]}
               onPress={() => setRol("customer")}
@@ -187,6 +210,7 @@ export default function RegisterScreen({ navigation }) {
               <Text
                 style={[
                   styles.roleOptionText,
+                  { color: colors.label },
                   rol === "customer" && { color: "#fff" },
                 ]}
               >
@@ -197,6 +221,7 @@ export default function RegisterScreen({ navigation }) {
             <TouchableOpacity
               style={[
                 styles.roleOption,
+                { backgroundColor: colors.inputBg, borderColor: colors.border },
                 rol === "merchant" && { backgroundColor: "#2E7D32", borderColor: "#2E7D32" },
               ]}
               onPress={() => setRol("merchant")}
@@ -209,6 +234,7 @@ export default function RegisterScreen({ navigation }) {
               <Text
                 style={[
                   styles.roleOptionText,
+                  { color: colors.label },
                   rol === "merchant" && { color: "#fff" },
                 ]}
               >
@@ -220,19 +246,21 @@ export default function RegisterScreen({ navigation }) {
           {/* Campos adicionales de Comerciante */}
           {rol === "merchant" && (
             <View style={styles.merchantSection}>
-              <Text style={styles.label}>Nombre de tu Comercio *</Text>
+              <Text style={[styles.label, { color: colors.label }]}>Nombre de tu Comercio *</Text>
               <TextInput
                 placeholder="Ej: Minimercado La Esquina"
-                style={styles.input}
+                placeholderTextColor={colors.placeholder}
+                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
                 value={nombreTienda}
                 onChangeText={setNombreTienda}
               />
 
-              <Text style={styles.label}>Dirección del Comercio *</Text>
+              <Text style={[styles.label, { color: colors.label }]}>Dirección del Comercio *</Text>
               <View style={styles.addressContainer}>
                 <TextInput
                   placeholder="Ej: Calle 5 # 38-14, Cali"
-                  style={styles.addressInput}
+                  placeholderTextColor={colors.placeholder}
+                  style={[styles.addressInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
                   value={direccion}
                   onChangeText={(text) => {
                     setDireccion(text);
@@ -251,27 +279,27 @@ export default function RegisterScreen({ navigation }) {
                   )}
                 </TouchableOpacity>
               </View>
-              <Text style={styles.helperText}>
+              <Text style={[styles.helperText, { color: colors.helper }]}>
                 Usa el GPS para rellenar automáticamente la dirección.
               </Text>
             </View>
           )}
 
           {rol === "customer" && (
-            <View style={styles.roleInfo}>
-              <Text style={styles.roleInfoTitle}>Como cliente podrás:</Text>
-              <Text style={styles.roleInfoText}>- Ver ofertas de productos próximos a vencer</Text>
-              <Text style={styles.roleInfoText}>- Reservar productos con descuento</Text>
-              <Text style={styles.roleInfoText}>- Recibir notificaciones de nuevas ofertas</Text>
+            <View style={[styles.roleInfo, { backgroundColor: colors.infoBgCustomer }]}>
+              <Text style={[styles.roleInfoTitle, { color: colors.infoTitle }]}>Como cliente podrás:</Text>
+              <Text style={[styles.roleInfoText, { color: colors.infoText }]}>- Ver ofertas de productos próximos a vencer</Text>
+              <Text style={[styles.roleInfoText, { color: colors.infoText }]}>- Reservar productos con descuento</Text>
+              <Text style={[styles.roleInfoText, { color: colors.infoText }]}>- Recibir notificaciones de nuevas ofertas</Text>
             </View>
           )}
 
           {rol === "merchant" && (
-            <View style={[styles.roleInfo, styles.roleInfoMerchant]}>
-              <Text style={styles.roleInfoTitle}>Como comerciante podrás:</Text>
-              <Text style={styles.roleInfoText}>- Publicar tus productos</Text>
-              <Text style={styles.roleInfoText}>- Crear ofertas con descuentos</Text>
-              <Text style={styles.roleInfoText}>- Gestionar reservas de clientes</Text>
+            <View style={[styles.roleInfo, { backgroundColor: colors.infoBgMerchant }]}>
+              <Text style={[styles.roleInfoTitle, { color: colors.infoTitle }]}>Como comerciante podrás:</Text>
+              <Text style={[styles.roleInfoText, { color: colors.infoText }]}>- Publicar tus productos</Text>
+              <Text style={[styles.roleInfoText, { color: colors.infoText }]}>- Crear ofertas con descuentos</Text>
+              <Text style={[styles.roleInfoText, { color: colors.infoText }]}>- Gestionar reservas de clientes</Text>
             </View>
           )}
 

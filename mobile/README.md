@@ -1,50 +1,57 @@
-# Welcome to your Expo app 👋
+# ResYet App - Cliente Móvil y Web (Frontend)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Este directorio contiene el frontend de **ResYet**, una aplicación móvil desarrollada con **React Native** y **Expo (SDK 54)**. Ofrece una interfaz premium y fluida para clientes (mapas, ofertas y reservas) y comerciantes (gestión de inventario de tiendas).
 
-## Get started
+---
 
-1. Install dependencies
+## 📲 Requisitos Previos e Instalación
 
-   ```bash
-   npm install
-   ```
+1.  Asegúrate de tener instalado [Node.js](https://nodejs.org/).
+2.  Accede al directorio e instala las dependencias de npm:
+    ```bash
+    cd mobile
+    npm install
+    ```
 
-2. Start the app
+---
 
-   ```bash
-   npx expo start
-   ```
+## 🚦 Ejecución del Proyecto
 
-In the output, you'll find options to open the app in a
+*   **Iniciar el Servidor de Metro (Limpiando caché)**:
+    ```bash
+    npx expo start -c
+    ```
+*   **Probar en Celular Físico**:
+    1.  Descarga la aplicación **Expo Go** desde Google Play Store (Android) o App Store (iOS).
+    2.  Escanea el código QR que se imprime en la terminal. Asegúrate de que tu celular y tu computador estén conectados a la misma red Wi-Fi.
+*   **Probar en Navegador Web**:
+    Presiona la tecla `w` en la consola para iniciar la aplicación en tu navegador web local.
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+---
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+## 🎨 Pantallas y Funcionalidades del Cliente
 
-## Get a fresh project
+### 1. Registro (`RegisterScreen.js`)
+*   **Selector de Rol Fijo**: Reemplaza el menú desplegable nativo por dos botones táctiles gigantes ("Cliente" y "Comerciante") coloreados con sus respectivos temas (azul/verde) para garantizar compatibilidad con pantallas estrechas y **Modo Oscuro** del sistema.
+*   **Geolocalización por GPS**: Botón de mira satelital que obtiene tus coordenadas exactas con `Location.Accuracy.Highest`.
 
-When you're ready, run:
+### 2. Tablero de Ofertas (`OfertasClienteScreen.js`)
+*   **Mapa Interactivo Multiplataforma**:
+    *   **Nativo (iOS/Android)**: Renderiza `react-native-maps` con pines interactivos de las tiendas y el cliente.
+    *   **Web (Fallback)**: Carga dinámicamente un mapa real interactivo con **Leaflet y OpenStreetMap** mediante un iframe seguro con `srcDoc`. Permite filtrar ofertas al pulsar los pines.
+*   **Ordenamiento Progresivo por Cercanía**: Las ofertas se ordenan en base a la fórmula de Haversine mostrando los comercios más cercanos en la cima.
+*   **Filtro "Cercanas (< 5km)"**: Switch activo por defecto que oculta las tiendas ubicadas a más de 5.0 km.
+*   **Restricción Física de Compra**: Si el usuario desactiva el filtro de cercanía y visualiza un comercio lejano, el botón de reserva se deshabilita mostrando "Muy Lejos". Si intenta forzar la reserva, el sistema bloqueará la acción impidiéndole comprar.
+*   **Actualización en Vivo y Focus**:
+    *   Utiliza `useFocusEffect` para recargar el inventario cada vez que entras a la pantalla.
+    *   Configura un temporizador silencioso en segundo plano que consulta cambios al servidor cada 8 segundos sin parpadeos de interfaz.
 
-```bash
-npm run reset-project
-```
+### 3. Mis Productos / Comercios (`ProductsScreen.js`)
+*   **Creación de Tienda**: Los comerciantes configuran sus horarios y ubicación (por GPS o manual por texto normalizado).
+*   **Inventario**: Creación de productos y ofertas.
+*   **Picker de Categorías**: Menú desplegable interactivo (`Picker`) con las categorías estandarizadas: *Panadería, Frutas/Verduras, Lácteos, Platos Preparados, Otros*. Esto asegura que las ofertas de los comerciantes coincidan al 100% con los filtros de los clientes.
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+### 4. Perfil de Usuario (`ProfileScreen.js`)
+*   Permite a clientes y comerciantes editar sus nombres, teléfonos y direcciones físicas de forma integrada en la pantalla.
+*   Soporta la captura de coordenadas de GPS exacta para comerciantes en la edición de su perfil.
+*   Mantiene el correo electrónico de inicio de sesión de solo lectura para preservar la consistencia de credenciales.

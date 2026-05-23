@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   ScrollView,
   Image,
+  useColorScheme,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../services/api";
@@ -23,6 +24,21 @@ import InteractiveMap from "../components/InteractiveMap";
 const CATEGORIAS = ["Todos", "Panadería", "Frutas/Verduras", "Lácteos", "Platos Preparados", "Otros"];
 
 export default function OfertasClienteScreen() {
+  const isDark = useColorScheme() === "dark";
+  const colors = {
+    bg: isDark ? "#121212" : "#f5f5f5",
+    card: isDark ? "#1e1e1e" : "#ffffff",
+    text: isDark ? "#ffffff" : "#333333",
+    label: isDark ? "#cccccc" : "#555555",
+    subtext: isDark ? "#aaaaaa" : "#666666",
+    placeholder: isDark ? "#777777" : "#999999",
+    border: isDark ? "#333333" : "#dddddd",
+    inputBg: isDark ? "#2a2a2a" : "#fafafa",
+    modalOverlay: isDark ? "rgba(0,0,0,0.7)" : "rgba(0,0,0,0.5)",
+    chipBg: isDark ? "#2c2c2c" : "#e0e0e0",
+    primary: "#1976D2",
+  };
+
   const [ofertas, setOfertas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [reservaModal, setReservaModal] = useState(false);
@@ -278,20 +294,20 @@ export default function OfertasClienteScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.bg }]}>
       {/* Buscador */}
-      <View style={styles.searchSection}>
-        <Ionicons name="search" size={20} color="#888" style={styles.searchIcon} />
+      <View style={[styles.searchSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Ionicons name="search" size={20} color={colors.placeholder} style={styles.searchIcon} />
         <TextInput
           placeholder="Buscar productos o comercios..."
           value={searchText}
           onChangeText={setSearchText}
-          style={styles.searchInput}
-          placeholderTextColor="#888"
+          style={[styles.searchInput, { color: colors.text }]}
+          placeholderTextColor={colors.placeholder}
         />
         {searchText.length > 0 && (
           <TouchableOpacity onPress={() => setSearchText("")}>
-            <Ionicons name="close-circle" size={18} color="#888" />
+            <Ionicons name="close-circle" size={18} color={colors.placeholder} />
           </TouchableOpacity>
         )}
       </View>
@@ -308,14 +324,22 @@ export default function OfertasClienteScreen() {
             return (
               <TouchableOpacity
                 key={cat}
-                style={[styles.categoryChip, isSelected && styles.categoryChipSelected]}
+                style={[
+                  styles.categoryChip, 
+                  { backgroundColor: colors.chipBg },
+                  isSelected && styles.categoryChipSelected
+                ]}
                 onPress={() => {
                   setSelectedCategoria(cat);
                   setSelectedStoreId(null); // Resetea filtro de tienda al cambiar categoría
                 }}
               >
                 <Text
-                  style={[styles.categoryChipText, isSelected && styles.categoryChipTextSelected]}
+                  style={[
+                    styles.categoryChipText, 
+                    { color: colors.text },
+                    isSelected && styles.categoryChipTextSelected
+                  ]}
                 >
                   {cat}
                 </Text>
@@ -340,7 +364,7 @@ export default function OfertasClienteScreen() {
       {/* Listado de Ofertas */}
       <View style={styles.offersHeader}>
         <View style={styles.offersHeaderTitleRow}>
-          <Text style={styles.sectionTitle}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
             {selectedStoreId
               ? "Ofertas en este comercio"
               : selectedCategoria !== "Todos"
@@ -371,9 +395,9 @@ export default function OfertasClienteScreen() {
 
       {ofertasFiltradas.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Ionicons name="alert-circle-outline" size={48} color="#999" />
-          <Text style={styles.emptyText}>No hay ofertas disponibles</Text>
-          <Text style={styles.emptySubtext}>Intenta cambiar el filtro o la búsqueda</Text>
+          <Ionicons name="alert-circle-outline" size={48} color={colors.placeholder} />
+          <Text style={[styles.emptyText, { color: colors.subtext }]}>No hay ofertas disponibles</Text>
+          <Text style={[styles.emptySubtext, { color: colors.placeholder }]}>Intenta cambiar el filtro o la búsqueda</Text>
         </View>
       ) : (
         <FlatList
@@ -391,12 +415,12 @@ export default function OfertasClienteScreen() {
             );
 
             return (
-              <View style={styles.offerCard}>
+              <View style={[styles.offerCard, { backgroundColor: colors.card }]}>
                 {renderProductImage(item)}
                 
                 <View style={styles.offerInfo}>
                   <View style={styles.cardHeader}>
-                    <Text style={styles.offerTitle} numberOfLines={1}>
+                    <Text style={[styles.offerTitle, { color: colors.text }]} numberOfLines={1}>
                       {item.titulo}
                     </Text>
                     <View style={styles.flashBadge}>
@@ -405,14 +429,14 @@ export default function OfertasClienteScreen() {
                     </View>
                   </View>
 
-                  <Text style={styles.storeName} numberOfLines={1}>
-                    <Ionicons name="storefront-outline" size={13} color="#666" />{" "}
+                  <Text style={[styles.storeName, { color: colors.subtext }]} numberOfLines={1}>
+                    <Ionicons name="storefront-outline" size={13} color={colors.subtext} />{" "}
                     {item.producto?.tienda?.nombre || "Comercio Local"}
                   </Text>
 
                   {dist !== null && (
-                    <Text style={styles.distanceText}>
-                      <Ionicons name="location-outline" size={13} color="#666" /> A{" "}
+                    <Text style={[styles.distanceText, { color: colors.subtext }]}>
+                      <Ionicons name="location-outline" size={13} color={colors.subtext} /> A{" "}
                       {dist.toFixed(1)} km
                     </Text>
                   )}
@@ -420,7 +444,7 @@ export default function OfertasClienteScreen() {
                   <View style={styles.priceSection}>
                     {item.producto?.precioBase > 0 && (
                       <>
-                        <Text style={styles.originalPrice}>
+                        <Text style={[styles.originalPrice, { color: colors.placeholder }]}>
                           ${item.producto.precioBase.toFixed(2)}
                         </Text>
                         <Text style={styles.discountedPrice}>
@@ -459,41 +483,43 @@ export default function OfertasClienteScreen() {
         onRequestClose={() => setReservaModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Confirmar Reserva</Text>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Confirmar Reserva</Text>
 
             {selectedOferta && (
-              <View style={styles.selectedOfferInfo}>
-                <Text style={styles.selectedOfferTitle}>{selectedOferta.titulo}</Text>
-                <Text style={styles.selectedOfferDiscount}>
+              <View style={[styles.selectedOfferInfo, { backgroundColor: isDark ? "rgba(25, 118, 210, 0.15)" : "#E3F2FD" }]}>
+                <Text style={[styles.selectedOfferTitle, { color: isDark ? "#90CAF9" : "#1976D2" }]}>{selectedOferta.titulo}</Text>
+                <Text style={[styles.selectedOfferDiscount, { color: colors.subtext }]}>
                   Descuento del {selectedOferta.descuento}%
                 </Text>
               </View>
             )}
 
-            <Text style={styles.label}>Fecha de recogida:</Text>
+            <Text style={[styles.label, { color: colors.label }]}>Fecha de recogida:</Text>
             {Platform.OS === "web" ? (
               <input
                 type="date"
                 value={fecha}
                 onChange={(e) => setFecha(e.target.value)}
-                style={styles.webDatePicker}
+                style={[styles.webDatePicker, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
               />
             ) : (
               <TextInput
                 placeholder="YYYY-MM-DD"
+                placeholderTextColor={colors.placeholder}
                 value={fecha}
                 onChangeText={setFecha}
-                style={styles.input}
+                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
               />
             )}
 
-            <Text style={styles.label}>Notas adicionales (opcional):</Text>
+            <Text style={[styles.label, { color: colors.label }]}>Notas adicionales (opcional):</Text>
             <TextInput
               placeholder="Ej: Recogeré en la tarde"
+              placeholderTextColor={colors.placeholder}
               value={notas}
               onChangeText={setNotas}
-              style={[styles.input, styles.textArea]}
+              style={[styles.input, styles.textArea, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
               multiline
               numberOfLines={3}
             />
@@ -509,11 +535,11 @@ export default function OfertasClienteScreen() {
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.cancelButton}
+                style={[styles.cancelButton, { backgroundColor: isDark ? "#333" : "#eee" }]}
                 onPress={() => setReservaModal(false)}
                 disabled={reservando}
               >
-                <Text style={styles.cancelButtonText}>Cancelar</Text>
+                <Text style={[styles.cancelButtonText, { color: isDark ? colors.text : "#333" }]}>Cancelar</Text>
               </TouchableOpacity>
             </View>
           </View>

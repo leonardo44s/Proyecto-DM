@@ -9,6 +9,7 @@ import {
   TextInput,
   ActivityIndicator,
   ScrollView,
+  useColorScheme,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
@@ -151,11 +152,23 @@ export default function ProfileScreen({ onLogout }) {
     }
   };
 
+  const isDark = useColorScheme() === "dark";
+  const colors = {
+    bg: isDark ? "#121212" : "#f5f5f5",
+    card: isDark ? "#1e1e1e" : "#ffffff",
+    text: isDark ? "#ffffff" : "#333333",
+    label: isDark ? "#cccccc" : "#888888",
+    subtext: isDark ? "#aaaaaa" : "#666666",
+    placeholder: isDark ? "#777777" : "#999999",
+    border: isDark ? "#333333" : "#dddddd",
+    inputBg: isDark ? "#2a2a2a" : "#fafafa",
+  };
+
   if (!user) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.bg }]}>
         <ActivityIndicator size="large" color="#1976D2" style={{ marginTop: 50 }} />
-        <Text style={styles.loadingText}>Cargando perfil...</Text>
+        <Text style={[styles.loadingText, { color: colors.subtext }]}>Cargando perfil...</Text>
       </View>
     );
   }
@@ -163,7 +176,7 @@ export default function ProfileScreen({ onLogout }) {
   const isMerchant = user.rol === "merchant";
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.bg }]} contentContainerStyle={{ paddingBottom: 32 }}>
       {/* Cabecera del perfil */}
       <View style={[styles.header, isMerchant ? styles.headerMerchant : styles.headerCustomer]}>
         <View style={styles.avatar}>
@@ -178,9 +191,9 @@ export default function ProfileScreen({ onLogout }) {
       </View>
 
       {/* Tarjeta de Información de la Cuenta */}
-      <View style={styles.infoCard}>
+      <View style={[styles.infoCard, { backgroundColor: colors.card }]}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Información de la cuenta</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Información de la cuenta</Text>
           {!editing && (
             <TouchableOpacity onPress={() => setEditing(true)} style={styles.editButton}>
               <Ionicons name="create-outline" size={20} color={isMerchant ? "#2E7D32" : "#1976D2"} />
@@ -192,41 +205,43 @@ export default function ProfileScreen({ onLogout }) {
         </View>
 
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Correo electrónico (no editable)</Text>
-          <Text style={styles.infoValueReadonly}>{user.email}</Text>
+          <Text style={[styles.infoLabel, { color: colors.label }]}>Correo electrónico (no editable)</Text>
+          <Text style={[styles.infoValueReadonly, { color: colors.subtext }]}>{user.email}</Text>
         </View>
 
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Nombre completo</Text>
+          <Text style={[styles.infoLabel, { color: colors.label }]}>Nombre completo</Text>
           {editing ? (
             <TextInput
               value={nombre}
               onChangeText={setNombre}
-              style={styles.input}
+              placeholderTextColor={colors.placeholder}
+              style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
               placeholder="Tu nombre"
             />
           ) : (
-            <Text style={styles.infoValue}>{user.nombre || "No especificado"}</Text>
+            <Text style={[styles.infoValue, { color: colors.text }]}>{user.nombre || "No especificado"}</Text>
           )}
         </View>
 
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Teléfono</Text>
+          <Text style={[styles.infoLabel, { color: colors.label }]}>Teléfono</Text>
           {editing ? (
             <TextInput
               value={phone}
               onChangeText={setPhone}
-              style={styles.input}
+              placeholderTextColor={colors.placeholder}
+              style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
               placeholder="Tu teléfono"
               keyboardType="phone-pad"
             />
           ) : (
-            <Text style={styles.infoValue}>{user.phone || user.telefono || "No especificado"}</Text>
+            <Text style={[styles.infoValue, { color: colors.text }]}>{user.phone || user.telefono || "No especificado"}</Text>
           )}
         </View>
 
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Dirección</Text>
+          <Text style={[styles.infoLabel, { color: colors.label }]}>Dirección</Text>
           {editing ? (
             <View>
               <View style={styles.addressContainer}>
@@ -236,7 +251,8 @@ export default function ProfileScreen({ onLogout }) {
                     setDireccion(text);
                     setCoords(null);
                   }}
-                  style={styles.addressInput}
+                  placeholderTextColor={colors.placeholder}
+                  style={[styles.addressInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
                   placeholder="Tu dirección"
                 />
                 {isMerchant && (
@@ -258,13 +274,13 @@ export default function ProfileScreen({ onLogout }) {
                 )}
               </View>
               {isMerchant && (
-                <Text style={styles.helperText}>
+                <Text style={[styles.helperText, { color: colors.placeholder }]}>
                   Usa el GPS para rellenar automáticamente la dirección.
                 </Text>
               )}
             </View>
           ) : (
-            <Text style={styles.infoValue}>{user.direccion || "No especificada"}</Text>
+            <Text style={[styles.infoValue, { color: colors.text }]}>{user.direccion || "No especificada"}</Text>
           )}
         </View>
 
@@ -282,7 +298,7 @@ export default function ProfileScreen({ onLogout }) {
               )}
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.cancelButton}
+              style={[styles.cancelButton, { backgroundColor: isDark ? "#333" : "#eee" }]}
               onPress={() => {
                 setNombre(user.nombre || "");
                 setPhone(user.phone || user.telefono || "");
@@ -291,18 +307,18 @@ export default function ProfileScreen({ onLogout }) {
               }}
               disabled={saving}
             >
-              <Text style={styles.cancelButtonText}>Cancelar</Text>
+              <Text style={[styles.cancelButtonText, { color: isDark ? colors.text : "#333" }]}>Cancelar</Text>
             </TouchableOpacity>
           </View>
         )}
       </View>
 
       {/* Tarjeta de Estadísticas / Información del Rol */}
-      <View style={styles.statsCard}>
-        <Text style={styles.sectionTitle}>
+      <View style={[styles.statsCard, { backgroundColor: colors.card }]}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>
           {isMerchant ? "Tu actividad como comerciante" : "Tu actividad como cliente"}
         </Text>
-        <Text style={styles.statsText}>
+        <Text style={[styles.statsText, { color: colors.subtext }]}>
           {isMerchant
             ? "Gestiona tus productos y ofertas desde el menú lateral. Recibirás notificaciones cuando un cliente reserve tus ofertas."
             : "Explora las ofertas disponibles y realiza reservas. Recibirás notificaciones sobre el estado de tus reservas."}
@@ -310,7 +326,7 @@ export default function ProfileScreen({ onLogout }) {
       </View>
 
       {/* Botón de cerrar sesión */}
-      <TouchableOpacity style={styles.logoutButton} onPress={confirmarCerrarSesion}>
+      <TouchableOpacity style={[styles.logoutButton, { backgroundColor: colors.card }]} onPress={confirmarCerrarSesion}>
         <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
       </TouchableOpacity>
 

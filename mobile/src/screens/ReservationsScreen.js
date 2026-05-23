@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { View, Text, FlatList, TouchableOpacity, Alert, Platform, StyleSheet, ActivityIndicator, RefreshControl } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, Alert, Platform, StyleSheet, ActivityIndicator, RefreshControl, useColorScheme } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../services/api";
 
@@ -15,6 +15,18 @@ export default function ReservationsScreen() {
   const [reservas, setReservas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const isDark = useColorScheme() === "dark";
+  const colors = {
+    bg: isDark ? "#121212" : "#f5f5f5",
+    card: isDark ? "#1e1e1e" : "#ffffff",
+    text: isDark ? "#ffffff" : "#333333",
+    subtext: isDark ? "#aaaaaa" : "#666666",
+    placeholder: isDark ? "#777777" : "#999999",
+    border: isDark ? "#333333" : "#dddddd",
+    notasBg: isDark ? "#2c2c2c" : "#f8f8f8",
+    primary: "#1976D2",
+  };
 
   const getAuthHeader = async () => ({
     headers: { Authorization: "Bearer " + (await AsyncStorage.getItem("token")) }
@@ -83,22 +95,22 @@ export default function ReservationsScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: colors.bg }]}>
         <ActivityIndicator size="large" color="#1976D2" />
-        <Text style={styles.loadingText}>Cargando tus reservas...</Text>
+        <Text style={[styles.loadingText, { color: colors.subtext }]}>Cargando tus reservas...</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Mis Reservas</Text>
-      <Text style={styles.subtitle}>Historial de todas tus reservas</Text>
+    <View style={[styles.container, { backgroundColor: colors.bg }]}>
+      <Text style={[styles.title, { color: colors.primary }]}>Mis Reservas</Text>
+      <Text style={[styles.subtitle, { color: colors.subtext }]}>Historial de todas tus reservas</Text>
 
       {reservas.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No tienes reservas</Text>
-          <Text style={styles.emptySubtext}>Ve a la seccion de Ofertas para realizar tu primera reserva</Text>
+          <Text style={[styles.emptyText, { color: colors.subtext }]}>No tienes reservas</Text>
+          <Text style={[styles.emptySubtext, { color: colors.placeholder }]}>Ve a la seccion de Ofertas para realizar tu primera reserva</Text>
         </View>
       ) : (
         <FlatList
@@ -112,14 +124,14 @@ export default function ReservationsScreen() {
             const estadoInfo = ESTADO_COLORS[item.estado] || ESTADO_COLORS.pendiente;
             
             return (
-              <View style={styles.reservaCard}>
+              <View style={[styles.reservaCard, { backgroundColor: colors.card }]}>
                 <View style={styles.cardHeader}>
                   <View style={[styles.estadoBadge, { backgroundColor: estadoInfo.bg }]}>
                     <Text style={[styles.estadoText, { color: estadoInfo.text }]}>
                       {estadoInfo.label}
                     </Text>
                   </View>
-                  <Text style={styles.fecha}>
+                  <Text style={[styles.fecha, { color: colors.placeholder }]}>
                     {item.fecha ? new Date(item.fecha).toLocaleDateString("es-ES", {
                       day: "numeric",
                       month: "long",
@@ -129,7 +141,7 @@ export default function ReservationsScreen() {
                 </View>
 
                 <View style={styles.ofertaInfo}>
-                  <Text style={styles.ofertaTitulo}>
+                  <Text style={[styles.ofertaTitulo, { color: colors.text }]}>
                     {item.oferta?.titulo || "Oferta no disponible"}
                   </Text>
                   {item.oferta?.descuento && (
@@ -139,15 +151,15 @@ export default function ReservationsScreen() {
 
                 {item.oferta?.producto && (
                   <View style={styles.productoInfo}>
-                    <Text style={styles.productoLabel}>Producto:</Text>
-                    <Text style={styles.productoNombre}>{item.oferta.producto.nombre}</Text>
+                    <Text style={[styles.productoLabel, { color: colors.placeholder }]}>Producto:</Text>
+                    <Text style={[styles.productoNombre, { color: colors.text }]}>{item.oferta.producto.nombre}</Text>
                   </View>
                 )}
 
                 {item.notas && (
-                  <View style={styles.notasContainer}>
-                    <Text style={styles.notasLabel}>Notas:</Text>
-                    <Text style={styles.notasText}>{item.notas}</Text>
+                  <View style={[styles.notasContainer, { backgroundColor: colors.notasBg }]}>
+                    <Text style={[styles.notasLabel, { color: colors.placeholder }]}>Notas:</Text>
+                    <Text style={[styles.notasText, { color: colors.subtext }]}>{item.notas}</Text>
                   </View>
                 )}
 
@@ -161,16 +173,16 @@ export default function ReservationsScreen() {
                 )}
 
                 {item.estado === "aceptada" && (
-                  <View style={styles.infoBox}>
-                    <Text style={styles.infoText}>
+                  <View style={[styles.infoBox, isDark && { backgroundColor: "rgba(46, 125, 50, 0.15)" }]}>
+                    <Text style={[styles.infoText, isDark && { color: "#81C784" }]}>
                       Tu reserva fue aceptada. Presenta esta reserva al recoger tu producto.
                     </Text>
                   </View>
                 )}
 
                 {item.estado === "rechazada" && (
-                  <View style={styles.warningBox}>
-                    <Text style={styles.warningText}>
+                  <View style={[styles.warningBox, isDark && { backgroundColor: "rgba(230, 81, 0, 0.15)" }]}>
+                    <Text style={[styles.warningText, isDark && { color: "#FFB74D" }]}>
                       Tu reserva fue rechazada por el comerciante. Puedes intentar reservar otra oferta.
                     </Text>
                   </View>
