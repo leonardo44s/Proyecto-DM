@@ -21,25 +21,80 @@ router.post("/", auth, roleGuard("merchant"), async (req, res) => {
 });
 
 // List by Store
-router.get("/", async (req, res) => {
-  const filter = req.query.store ? { tienda: req.query.store } : {};
-  const productos = await Product.find(filter);
-  res.json(productos);
+router.get("/", auth, async (req, res) => {
+  try {
+    let filter = {};
+    if (req.user.rol === "merchant") {
+      const store = await Store.findOne({ usuario: req.user.id });
+      if (store) {
+        filter = { tienda: store._id };
+      } else {
+        filter = { createdBy: req.user.id };
+      }
+    } else if (req.query.store) {
+      filter = { tienda: req.query.store };
+    }
+    const productos = await Product.find(filter);
+    res.json(productos);
+  } catch (err) {
+    res.status(500).json({ message: "Error al listar productos", error: err.message });
+  }
 });
 
 // Update
 router.put("/:id", auth, roleGuard("merchant"), async (req, res) => {
-  const prod = await Product.findOneAndUpdate(
-    { _id: req.params.id, createdBy: req.user.id },
-    req.body, { new: true }
-  );
-  res.json(prod);
+  try {
+    const store = await Store.findOne({ usuario: req.user.id });
+    if (!store) {
+      return res.status(400).json({ message: "No se encontró ningún comercio asociado a este usuario." });
+    }
+    
+    const prod = await Product.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        $or: [
+          { tienda: store._id },
+          { createdBy: req.user.id }
+        ]
+      },
+      req.body, { new: true }
+    );
+    
+    if (!prod) {
+      return res.status(404).json({ message: "Producto no encontrado o no estás autorizado." });
+    }
+    
+    res.json(prod);
+  } catch (err) {
+    res.status(400).json({ message: "Error al actualizar producto", error: err.message });
+  }
 });
 
 // Delete
 router.delete("/:id", auth, roleGuard("merchant"), async (req, res) => {
-  await Product.deleteOne({ _id: req.params.id, createdBy: req.user.id });
-  res.json({ message: "Producto eliminado" });
+  try {
+    const store = await Store.findOne({ usuario: req.user.id });
+    if (!store) {
+      return res.status(400).json({ message: "No se encontró ningún comercio asociado a este usuario." });
+    }
+    
+    const product = await Product.findOne({
+      _id: req.params.id,
+      $or: [
+        { tienda: store._id },
+        { createdBy: req.user.id }
+      ]
+    });
+    
+    if (!product) {
+      return res.status(404).json({ message: "Producto no encontrado o no estás autorizado para eliminarlo." });
+    }
+    
+    await Product.deleteOne({ _id: req.params.id });
+    res.json({ message: "Producto eliminado" });
+  } catch (err) {
+    res.status(400).json({ message: "Error al eliminar producto", error: err.message });
+  }
 });
 
 module.exports = router;

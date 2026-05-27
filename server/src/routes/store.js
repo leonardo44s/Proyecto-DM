@@ -64,22 +64,114 @@ router.get("/merchant/stats", auth, roleGuard("merchant"), async (req, res) => {
     const offers = await Offer.find({ usuario: req.user.id });
     const offerIds = offers.map(o => o._id);
     
-    // Count pending reservations
-    const pendingReservationsCount = await Reservation.countDocuments({
+    // Period filter
+    const { periodo } = req.query; // 'hoy', 'semana', 'mes', 'todo'
+    let dateFilter = {};
+    if (periodo === "hoy") {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      dateFilter = { createdAt: { $gte: startOfDay } };
+    } else if (periodo === "semana") {
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      dateFilter = { createdAt: { $gte: oneWeekAgo } };
+    } else if (periodo === "mes") {
+      const oneMonthAgo = new Date();
+      oneMonthAgo.setDate(oneMonthAgo.getDate() - 30);
+      dateFilter = { createdAt: { $gte: oneMonthAgo } };
+    }
+
+    // Find reservations in this period
+    const reservations = await Reservation.find({
+      oferta: { $in: offerIds },
+      ...dateFilter
+    })
+      .populate("usuario", "nombre")
+      .populate({
+        path: "oferta",
+        populate: { path: "producto" }
+      });
+      
+    // Global metrics (always total) for dashboard widgets
+    const overallPendingCount = await Reservation.countDocuments({
       oferta: { $in: offerIds },
       estado: "pendiente"
     });
-    
-    // Count completed (accepted/completada) rescues
-    const completedRescuesCount = await Reservation.countDocuments({
+    const overallCompletedCount = await Reservation.countDocuments({
       oferta: { $in: offerIds },
-      estado: { $in: ["aceptada", "completada"] }
+      estado: "completada"
     });
     
-    // Calculate saved food weight: each completed rescue represents ~1.5kg of food saved
-    const savedFoodWeight = Math.round(completedRescuesCount * 1.5 * 10) / 10;
+    // Calculate total stats for the selected period
+    const totalReservas = reservations.length;
+    let ingresosTotales = 0;
+    let totalVendidosCount = 0; // completadas
     
-    // Recent activities (last 5 reservations)
+    const reservasPorEstado = { pendiente: 0, aceptada: 0, completada: 0, cancelada: 0, rechazada: 0 };
+    const productoStatsMap = {};
+    
+    reservations.forEach(r => {
+      if (reservasPorEstado[r.estado] !== undefined) {
+        reservasPorEstado[r.estado]++;
+      }
+      
+      const offer = r.oferta;
+      if (!offer) return;
+      const prod = offer.producto;
+      if (!prod) return;
+      
+      const basePrice = prod.precioBase || 0;
+      const discount = offer.descuento || 0;
+      const finalPrice = basePrice * (1 - discount / 100);
+      
+      const prodId = prod._id.toString();
+      if (!productoStatsMap[prodId]) {
+        productoStatsMap[prodId] = {
+          id: prodId,
+          nombre: prod.nombre,
+          imagen: prod.imagen,
+          categoria: prod.categoria,
+          reservado: 0,
+          vendido: 0,
+          ingresos: 0
+        };
+      }
+      
+      productoStatsMap[prodId].reservado += 1;
+      
+      if (r.estado === "completada") {
+        ingresosTotales += finalPrice;
+        totalVendidosCount += 1;
+        productoStatsMap[prodId].vendido += 1;
+        productoStatsMap[prodId].ingresos += finalPrice;
+      }
+    });
+    
+    // Convert maps to sorted arrays
+    const productosMasVendidos = Object.values(productoStatsMap)
+      .sort((a, b) => b.vendido - a.vendido || b.reservado - a.reservado);
+      
+    // Group categories
+    const categoriaStatsMap = {};
+    Object.values(productoStatsMap).forEach(p => {
+      const cat = p.categoria || "Otros";
+      if (!categoriaStatsMap[cat]) {
+        categoriaStatsMap[cat] = {
+          categoria: cat,
+          reservado: 0,
+          vendido: 0,
+          ingresos: 0
+        };
+      }
+      categoriaStatsMap[cat].reservado += p.reservado;
+      categoriaStatsMap[cat].vendido += p.vendido;
+      categoriaStatsMap[cat].ingresos += p.ingresos;
+    });
+    
+    const ventasPorCategoria = Object.values(categoriaStatsMap)
+      .sort((a, b) => b.ingresos - a.ingresos);
+
+    // Recent activities (always last 5 for dashboard)
     const recentReservations = await Reservation.find({ oferta: { $in: offerIds } })
       .populate("usuario", "nombre")
       .populate({ path: "oferta", populate: { path: "producto" } })
@@ -124,14 +216,23 @@ router.get("/merchant/stats", auth, roleGuard("merchant"), async (req, res) => {
         color: colorStr
       };
     });
+
+    const savedFoodWeight = Math.round(overallCompletedCount * 1.5 * 10) / 10;
     
     res.json({
       storeName: store.nombre,
       productosActivos: activeProductsCount,
-      reservasPendientes: pendingReservationsCount,
-      rescatesCompletados: completedRescuesCount,
+      reservasPendientes: overallPendingCount,
+      rescatesCompletados: overallCompletedCount,
       alimentosSalvados: savedFoodWeight,
-      actividades: activities
+      actividades: activities,
+      // Detailed stats
+      totalReservas,
+      ingresosTotales: Math.round(ingresosTotales * 100) / 100,
+      totalVendidos: totalVendidosCount,
+      reservasPorEstado,
+      productosMasVendidos,
+      ventasPorCategoria
     });
   } catch (err) {
     console.error("Error al obtener estadísticas del comerciante:", err);

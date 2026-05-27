@@ -145,7 +145,7 @@ export default function MerchantDashboardScreen({ navigation }) {
           {/* Card 3: Rescates Completados */}
           <TouchableOpacity 
             style={[styles.statCard, { backgroundColor: colors.card }]}
-            onPress={() => navigation.navigate("Reservas")}
+            onPress={() => navigation.navigate("MerchantStats")}
             activeOpacity={0.8}
           >
             <View style={styles.statCardHeader}>
@@ -188,6 +188,15 @@ export default function MerchantDashboardScreen({ navigation }) {
           >
             <Ionicons name="flash-outline" size={20} color="#fff" style={styles.btnIcon} />
             <Text style={styles.actionBtnText}>Crear Oferta Relámpago</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.actionBtn, { backgroundColor: "#1976D2" }]}
+            onPress={() => navigation.navigate("MerchantStats")}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="stats-chart-outline" size={20} color="#fff" style={styles.btnIcon} />
+            <Text style={styles.actionBtnText}>Ver Estadísticas y Ventas</Text>
           </TouchableOpacity>
         </View>
 

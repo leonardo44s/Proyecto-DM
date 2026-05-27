@@ -19,6 +19,7 @@ import ReservasComercianteScreen from "../screens/ReservasComercianteScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
 import ForgotPasswordScreen from "../screens/ForgotPasswordScreen";
 import MerchantDashboardScreen from "../screens/MerchantDashboardScreen";
+import MerchantStatsScreen from "../screens/MerchantStatsScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -252,6 +253,13 @@ export default function AppNavigator() {
               title: "Notificaciones",
               headerStyle: { backgroundColor: '#EF6C00' },
               headerTintColor: '#ffffff',
+            }} 
+          />
+          <Stack.Screen 
+            name="MerchantStats" 
+            component={MerchantStatsScreen} 
+            options={{ 
+              headerShown: false,
             }} 
           />
         </Stack.Navigator>

@@ -69,6 +69,8 @@ export default function ProductsScreen() {
     placeholder: isDark ? "#555555" : "#bbbbbb",
     border: isDark ? "#2a2a2a" : "#E0E0E0",
     inputBg: isDark ? "#2a2a2a" : "#ffffff",
+    orange: "#EF6C00", // Brand orange color
+    orangeLight: isDark ? "rgba(255, 152, 0, 0.15)" : "#FFF3E0", // Light transparent orange background
     orangeHeader: "#EF6C00", // Merchant Orange
     greenButton: "#00B050", // Merchant add product button green
     orangeButton: "#FF9800", // Flash orange button
