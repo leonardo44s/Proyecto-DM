@@ -15,6 +15,7 @@ app.use("/lots", require("./routes/lots"));
 app.use("/offers", require("./routes/offers"));
 app.use("/reservations", require("./routes/reservations"));
 app.use("/notifications", require("./routes/notifications"));
+app.use("/ratings", require("./routes/ratings"));
 
 // Inicia cron jobs
 require("./services/cron");

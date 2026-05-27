@@ -1,10 +1,11 @@
 // src/navigation/AppNavigator.js
 import React, { useEffect, useState } from "react";
-import { useColorScheme } from "react-native";
+import { useColorScheme, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { NavigationContainer, DefaultTheme, DarkTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { createDrawerNavigator } from "@react-navigation/drawer";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { Ionicons } from "@expo/vector-icons";
 
 import LoginScreen from "../screens/LoginScreen";
 import RegisterScreen from "../screens/RegisterScreen";
@@ -12,91 +13,157 @@ import ProductsScreen from "../screens/ProductsScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import OffersScreen from "../screens/OffersScreen";
 import OfertasClienteScreen from "../screens/OfertasClienteScreen";
+import ExplorarScreen from "../screens/ExplorarScreen";
 import ReservationsScreen from "../screens/ReservationsScreen";
 import ReservasComercianteScreen from "../screens/ReservasComercianteScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
+import ForgotPasswordScreen from "../screens/ForgotPasswordScreen";
+import MerchantDashboardScreen from "../screens/MerchantDashboardScreen";
 
 const Stack = createNativeStackNavigator();
-const Drawer = createDrawerNavigator();
+const Tab = createBottomTabNavigator();
 
-function DrawerComerciante({ onLogout }) {
+function TabComerciante({ onLogout }) {
   const isDark = useColorScheme() === "dark";
+  const activeColor = "#EF6C00";
+  const inactiveColor = isDark ? "#888888" : "#6c757d";
+
   return (
-    <Drawer.Navigator 
-      initialRouteName="Productos"
-      screenOptions={{
-        headerStyle: { backgroundColor: '#2E7D32' },
-        headerTintColor: '#fff',
-        drawerActiveTintColor: '#2E7D32',
-        drawerActiveBackgroundColor: isDark ? 'rgba(46, 125, 50, 0.2)' : '#E8F5E9',
-        drawerInactiveTintColor: isDark ? '#bbb' : '#666',
-        drawerStyle: {
-          backgroundColor: isDark ? '#1e1e1e' : '#fff',
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarActiveTintColor: activeColor,
+        tabBarInactiveTintColor: inactiveColor,
+        tabBarStyle: {
+          backgroundColor: isDark ? "#1a1a1a" : "#ffffff",
+          borderTopColor: isDark ? "#2d2d2d" : "#e0e0e0",
+          paddingBottom: Platform.OS === "ios" ? 20 : 6,
+          paddingTop: 6,
+          height: Platform.OS === "ios" ? 88 : 60,
         },
-      }}
+        headerStyle: {
+          backgroundColor: isDark ? "#1a1a1a" : "#ffffff",
+          shadowColor: "transparent",
+          elevation: 0,
+        },
+        headerTintColor: isDark ? "#ffffff" : "#212529",
+        headerTitleStyle: {
+          fontWeight: "bold",
+        },
+        tabBarIcon: ({ color, size, focused }) => {
+          let iconName;
+          if (route.name === "Dashboard") {
+            iconName = focused ? "bar-chart" : "bar-chart-outline";
+          } else if (route.name === "Productos") {
+            iconName = focused ? "storefront" : "storefront-outline";
+          } else if (route.name === "Perfil") {
+            iconName = focused ? "person" : "person-outline";
+          }
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+      })}
     >
-      <Drawer.Screen 
+      <Tab.Screen 
+        name="Dashboard" 
+        component={MerchantDashboardScreen} 
+        options={{ headerShown: false, tabBarLabel: "Dashboard" }} 
+      />
+      <Tab.Screen 
         name="Productos" 
-        component={ProductsScreen}
-        options={{ title: 'Mis Productos' }}
+        component={ProductsScreen} 
+        options={{ 
+          title: "Inventario",
+          tabBarLabel: "Inventario",
+          headerShown: false,
+        }} 
       />
-      <Drawer.Screen 
-        name="Ofertas" 
-        component={OffersScreen}
-        options={{ title: 'Mis Ofertas' }}
-      />
-      <Drawer.Screen 
-        name="Reservas" 
-        component={ReservasComercianteScreen}
-        options={{ title: 'Reservas Recibidas' }}
-      />
-      <Drawer.Screen 
-        name="Notificaciones" 
-        component={NotificationsScreen}
-        options={{ title: 'Notificaciones' }}
-      />
-      <Drawer.Screen name="Perfil">
+      <Tab.Screen 
+        name="Perfil" 
+        options={{ 
+          title: "Mi Perfil",
+          headerShown: true,
+          headerStyle: { backgroundColor: "#EF6C00" },
+          headerTintColor: "#ffffff",
+        }}
+      >
         {(props) => <ProfileScreen {...props} onLogout={onLogout} />}
-      </Drawer.Screen>
-    </Drawer.Navigator>
+      </Tab.Screen>
+    </Tab.Navigator>
   );
 }
 
-function DrawerCliente({ onLogout }) {
+function TabCliente({ onLogout }) {
   const isDark = useColorScheme() === "dark";
+  const activeColor = "#00B050";
+  const inactiveColor = isDark ? "#888888" : "#6c757d";
+
   return (
-    <Drawer.Navigator 
-      initialRouteName="Ofertas"
-      screenOptions={{
-        headerStyle: { backgroundColor: '#1976D2' },
-        headerTintColor: '#fff',
-        drawerActiveTintColor: '#1976D2',
-        drawerActiveBackgroundColor: isDark ? 'rgba(25, 118, 210, 0.2)' : '#E3F2FD',
-        drawerInactiveTintColor: isDark ? '#bbb' : '#666',
-        drawerStyle: {
-          backgroundColor: isDark ? '#1e1e1e' : '#fff',
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarActiveTintColor: activeColor,
+        tabBarInactiveTintColor: inactiveColor,
+        tabBarStyle: {
+          backgroundColor: isDark ? "#1a1a1a" : "#ffffff",
+          borderTopColor: isDark ? "#2d2d2d" : "#e0e0e0",
+          paddingBottom: Platform.OS === "ios" ? 20 : 6,
+          paddingTop: 6,
+          height: Platform.OS === "ios" ? 88 : 60,
         },
-      }}
+        headerStyle: {
+          backgroundColor: isDark ? "#1a1a1a" : "#ffffff",
+          shadowColor: "transparent",
+          elevation: 0,
+        },
+        headerTintColor: isDark ? "#ffffff" : "#212529",
+        headerTitleStyle: {
+          fontWeight: "bold",
+        },
+        tabBarIcon: ({ color, size, focused }) => {
+          let iconName;
+          if (route.name === "Mapa") {
+            iconName = focused ? "map" : "map-outline";
+          } else if (route.name === "Explorar") {
+            iconName = focused ? "search" : "search-outline";
+          } else if (route.name === "Reservas") {
+            iconName = focused ? "receipt" : "receipt-outline";
+          } else if (route.name === "Perfil") {
+            iconName = focused ? "person" : "person-outline";
+          }
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+      })}
     >
-      <Drawer.Screen 
-        name="Ofertas" 
-        component={OfertasClienteScreen}
-        options={{ title: 'Ofertas Disponibles' }}
+      <Tab.Screen 
+        name="Mapa" 
+        component={OfertasClienteScreen} 
+        options={{ headerShown: false, tabBarLabel: "Mapa" }} 
       />
-      <Drawer.Screen 
+      <Tab.Screen 
+        name="Explorar" 
+        component={ExplorarScreen} 
+        options={{ headerShown: false, tabBarLabel: "Explorar" }} 
+      />
+      <Tab.Screen 
         name="Reservas" 
-        component={ReservationsScreen}
-        options={{ title: 'Mis Reservas' }}
+        component={ReservationsScreen} 
+        options={{ 
+          title: "Mis Reservas",
+          headerShown: true,
+          headerStyle: { backgroundColor: "#00B050" },
+          headerTintColor: "#ffffff",
+        }} 
       />
-      <Drawer.Screen 
-        name="Notificaciones" 
-        component={NotificationsScreen}
-        options={{ title: 'Notificaciones' }}
-      />
-      <Drawer.Screen name="Perfil">
+      <Tab.Screen 
+        name="Perfil" 
+        options={{ 
+          title: "Mi Perfil",
+          headerShown: true,
+          headerStyle: { backgroundColor: "#00B050" },
+          headerTintColor: "#ffffff",
+        }}
+      >
         {(props) => <ProfileScreen {...props} onLogout={onLogout} />}
-      </Drawer.Screen>
-    </Drawer.Navigator>
+      </Tab.Screen>
+    </Tab.Navigator>
   );
 }
 
@@ -150,11 +217,62 @@ export default function AppNavigator() {
             {(props) => <LoginScreen {...props} onLogin={handleLogin} />}
           </Stack.Screen>
           <Stack.Screen name="Registrar" component={RegisterScreen} />
+          <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} options={{ title: "Recuperar Contraseña" }} />
         </Stack.Navigator>
       ) : rol === "merchant" ? (
-        <DrawerComerciante onLogout={handleLogout} />
+        <Stack.Navigator screenOptions={{
+          headerStyle: { backgroundColor: isDark ? '#1e1e1e' : '#fff' },
+          headerTintColor: isDark ? '#fff' : '#000',
+        }}>
+          <Stack.Screen name="MerchantMain" options={{ headerShown: false }}>
+            {(props) => <TabComerciante {...props} onLogout={handleLogout} />}
+          </Stack.Screen>
+          <Stack.Screen 
+            name="Ofertas" 
+            component={OffersScreen} 
+            options={{ 
+              title: "Crear Oferta Relámpago",
+              headerStyle: { backgroundColor: '#EF6C00' },
+              headerTintColor: '#ffffff',
+            }} 
+          />
+          <Stack.Screen 
+            name="Reservas" 
+            component={ReservasComercianteScreen} 
+            options={{ 
+              title: "Reservas Recibidas",
+              headerStyle: { backgroundColor: '#EF6C00' },
+              headerTintColor: '#ffffff',
+            }} 
+          />
+          <Stack.Screen 
+            name="Notificaciones" 
+            component={NotificationsScreen} 
+            options={{ 
+              title: "Notificaciones",
+              headerStyle: { backgroundColor: '#EF6C00' },
+              headerTintColor: '#ffffff',
+            }} 
+          />
+        </Stack.Navigator>
       ) : (
-        <DrawerCliente onLogout={handleLogout} />
+        <Stack.Navigator screenOptions={{
+          headerStyle: { backgroundColor: isDark ? '#1e1e1e' : '#fff' },
+          headerTintColor: isDark ? '#fff' : '#000',
+        }}>
+          <Stack.Screen name="CustomerMain" options={{ headerShown: false }}>
+            {(props) => <TabCliente {...props} onLogout={handleLogout} />}
+          </Stack.Screen>
+          <Stack.Screen 
+            name="Notificaciones" 
+            component={NotificationsScreen} 
+            options={{ 
+              title: "Notificaciones",
+              headerStyle: { backgroundColor: '#00B050' },
+              headerTintColor: '#ffffff',
+            }} 
+          />
+        </Stack.Navigator>
       )}
     </NavigationContainer>
   );

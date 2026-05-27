@@ -11,7 +11,9 @@ const StoreSchema = new mongoose.Schema({
     apertura: String,
     cierre: String
   },
-  usuario: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true }
+  usuario: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  promedioCalificaciones: { type: Number, default: 0 },
+  totalCalificaciones: { type: Number, default: 0 }
 }, { timestamps: true });
 
 StoreSchema.index({ coords: "2dsphere" }); // Para geolocalización futura

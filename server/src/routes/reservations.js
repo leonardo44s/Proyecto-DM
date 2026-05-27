@@ -3,7 +3,7 @@ const router = express.Router();
 const auth = require("../middlewares/auth");
 const Reservation = require("../models/Reservation");
 const Offer = require("../models/offer");
-const Notification = require("../models/Notification");
+const { createNotification } = require("../utils/notifications");
 
 // Crear reserva - SOLO cliente
 router.post("/", auth, async (req, res) => {
@@ -20,10 +20,9 @@ router.post("/", auth, async (req, res) => {
   await nueva.save();
 
   // Notificación a comerciante
-  await Notification.create({
-    usuario: offer.usuario,
-    mensaje: `Tienes una nueva reserva (${nueva._id}) en tu oferta "${offer.titulo}".`,
-    leida: false
+  await createNotification({
+    recipientId: offer.usuario,
+    message: `Tienes una nueva reserva (${nueva._id}) en tu oferta "${offer.titulo}".`
   });
 
   res.status(201).json(nueva);
@@ -37,7 +36,11 @@ router.get("/mias", auth, async (req, res) => {
   const reservas = await Reservation.find({ usuario: req.user.id })
     .populate({
       path: "oferta",
-      populate: { path: "producto", model: "Product" }
+      populate: {
+        path: "producto",
+        model: "Product",
+        populate: { path: "tienda", model: "Store" }
+      }
     });
   res.json(reservas);
 });
@@ -61,22 +64,26 @@ router.put("/:id/estado", auth, async (req, res) => {
   const reserva = await Reservation.findById(req.params.id).populate("oferta");
   if (!reserva) return res.status(404).json({ message: "Reserva no encontrada" });
 
-  // MERCHANT puede aceptar/rechazar
+  // MERCHANT puede aceptar/rechazar/completar
   if (req.user.rol === "merchant") {
     if (String(reserva.oferta.usuario) !== String(req.user.id))
       return res.status(403).json({ message: "No autorizado" });
 
     const { estado } = req.body;
-    if (!["aceptada", "rechazada"].includes(estado))
+    if (!["aceptada", "rechazada", "completada"].includes(estado))
       return res.status(400).json({ message: "Estado inválido" });
     reserva.estado = estado;
     await reserva.save();
 
+    let msg = `Tu reserva en oferta "${reserva.oferta.titulo}" fue ${estado}.`;
+    if (estado === "completada") {
+      msg = `¡Gracias por rescatar comida! Tu reserva en "${reserva.oferta.titulo}" ha sido completada. Ya puedes calificar al comercio.`;
+    }
+
     // Notifica al cliente
-    await Notification.create({
-      usuario: reserva.usuario,
-      mensaje: `Tu reserva en oferta "${reserva.oferta.titulo}" fue ${estado}.`,
-      leida: false
+    await createNotification({
+      recipientId: reserva.usuario,
+      message: msg
     });
     return res.json(reserva);
   }
@@ -90,10 +97,9 @@ router.put("/:id/estado", auth, async (req, res) => {
     await reserva.save();
 
     // Notifica al merchant
-    await Notification.create({
-      usuario: reserva.oferta.usuario,
-      mensaje: `El cliente canceló su reserva en tu oferta "${reserva.oferta.titulo}".`,
-      leida: false
+    await createNotification({
+      recipientId: reserva.oferta.usuario,
+      message: `El cliente canceló su reserva en tu oferta "${reserva.oferta.titulo}".`
     });
     return res.json(reserva);
   }

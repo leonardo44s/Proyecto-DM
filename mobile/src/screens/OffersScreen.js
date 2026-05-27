@@ -10,7 +10,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  useColorScheme
+  useColorScheme,
+  Image
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../services/api";
@@ -24,7 +25,8 @@ export default function OffersScreen() {
     titulo: "",
     descripcion: "",
     descuento: "",
-    producto: ""
+    producto: "",
+    fechaVencimiento: ""
   });
   const [editModal, setEditModal] = useState(false);
   const [editId, setEditId] = useState(null);
@@ -32,7 +34,8 @@ export default function OffersScreen() {
     titulo: "",
     descripcion: "",
     descuento: "",
-    producto: ""
+    producto: "",
+    fechaVencimiento: ""
   });
   const [showProductModal, setShowProductModal] = useState(false);
   const [showEditProductModal, setShowEditProductModal] = useState(false);
@@ -104,19 +107,50 @@ export default function OffersScreen() {
     else Alert.alert(title, msg);
   };
 
+  const formatDateTime = (date) => {
+    const pad = (num) => num.toString().padStart(2, "0");
+    const yyyy = date.getFullYear();
+    const mm = pad(date.getMonth() + 1);
+    const dd = pad(date.getDate());
+    const hh = pad(date.getHours());
+    const min = pad(date.getMinutes());
+    return `${yyyy}-${mm}-${dd} ${hh}:${min}`;
+  };
+
+  const parseInputDate = (str) => {
+    if (!str) return new Date(NaN);
+    const parts = str.trim().split(/[\s\-:\/]+/);
+    if (parts.length < 5) return new Date(NaN);
+    const yyyy = parseInt(parts[0], 10);
+    const mm = parseInt(parts[1], 10) - 1;
+    const dd = parseInt(parts[2], 10);
+    const hh = parseInt(parts[3], 10);
+    const min = parseInt(parts[4], 10);
+    return new Date(yyyy, mm, dd, hh, min);
+  };
+
   const crear = async () => {
     if (!form.titulo.trim() || !form.descripcion.trim() || !form.descuento || !form.producto) {
       showAlert("Completa todos los campos.");
       return;
+    }
+    let parsedExpiry = undefined;
+    if (form.fechaVencimiento && form.fechaVencimiento.trim()) {
+      parsedExpiry = parseInputDate(form.fechaVencimiento);
+      if (isNaN(parsedExpiry.getTime())) {
+        showAlert("Formato de fecha inválido. Usa AAAA-MM-DD HH:mm");
+        return;
+      }
     }
     try {
       await api.post("/offers", {
         titulo: form.titulo.trim(),
         descripcion: form.descripcion.trim(),
         descuento: Number(form.descuento),
-        producto: form.producto
+        producto: form.producto,
+        fechaVencimiento: parsedExpiry
       }, await getAuthHeader());
-      setForm({ titulo: "", descripcion: "", descuento: "", producto: "" });
+      setForm({ titulo: "", descripcion: "", descuento: "", producto: "", fechaVencimiento: "" });
       cargarOfertas();
       showAlert("Oferta creada correctamente");
     } catch (e) {
@@ -130,7 +164,10 @@ export default function OffersScreen() {
       titulo: oferta.titulo || "",
       descripcion: oferta.descripcion || "",
       descuento: oferta.descuento?.toString() || "",
-      producto: oferta.producto?._id || oferta.producto || ""
+      producto: oferta.producto?._id || oferta.producto || "",
+      fechaVencimiento: oferta.fechaVencimiento 
+        ? formatDateTime(new Date(oferta.fechaVencimiento)) 
+        : ""
     });
     setEditModal(true);
   };
@@ -140,16 +177,25 @@ export default function OffersScreen() {
       showAlert("Completa todos los campos.");
       return;
     }
+    let parsedExpiry = undefined;
+    if (editForm.fechaVencimiento && editForm.fechaVencimiento.trim()) {
+      parsedExpiry = parseInputDate(editForm.fechaVencimiento);
+      if (isNaN(parsedExpiry.getTime())) {
+        showAlert("Formato de fecha inválido. Usa AAAA-MM-DD HH:mm");
+        return;
+      }
+    }
     try {
       await api.put(`/offers/${editId}`, {
         titulo: editForm.titulo.trim(),
         descripcion: editForm.descripcion.trim(),
         descuento: Number(editForm.descuento),
-        producto: editForm.producto
+        producto: editForm.producto,
+        fechaVencimiento: parsedExpiry
       }, await getAuthHeader());
       setEditModal(false);
       setEditId(null);
-      setEditForm({ titulo: "", descripcion: "", descuento: "", producto: "" });
+      setEditForm({ titulo: "", descripcion: "", descuento: "", producto: "", fechaVencimiento: "" });
       cargarOfertas();
       showAlert("Oferta actualizada");
     } catch (e) {
@@ -223,6 +269,13 @@ export default function OffersScreen() {
           style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
           keyboardType="numeric"
         />
+        <TextInput
+          placeholder="Fecha de vencimiento (Opcional: AAAA-MM-DD HH:mm)"
+          placeholderTextColor={colors.placeholder}
+          value={form.fechaVencimiento}
+          onChangeText={v => setForm(f => ({ ...f, fechaVencimiento: v }))}
+          style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+        />
         <Text style={[styles.label, { color: colors.label }]}>Producto a ofertar:</Text>
         <TouchableOpacity
           style={[styles.selectButton, { backgroundColor: colors.inputBg, borderColor: colors.border }]}
@@ -273,6 +326,13 @@ export default function OffersScreen() {
               style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
               keyboardType="numeric"
             />
+            <TextInput
+              placeholder="Fecha de vencimiento (AAAA-MM-DD HH:mm)"
+              placeholderTextColor={colors.placeholder}
+              value={editForm.fechaVencimiento}
+              onChangeText={v => setEditForm(f => ({ ...f, fechaVencimiento: v }))}
+              style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+            />
             <Text style={[styles.label, { color: colors.label, marginBottom: 8 }]}>Producto:</Text>
             <TouchableOpacity
               style={[styles.selectButton, { backgroundColor: colors.inputBg, borderColor: colors.border, marginBottom: 16 }]}
@@ -310,16 +370,37 @@ export default function OffersScreen() {
           keyExtractor={item => item._id}
           renderItem={({ item }) => (
             <View style={[styles.offerCard, { backgroundColor: colors.card }]}>
-              <View style={styles.offerHeader}>
-                <Text style={[styles.offerTitle, { color: colors.text }]}>{item.titulo}</Text>
-                <View style={styles.discountBadge}>
-                  <Text style={styles.discountText}>{item.descuento}% OFF</Text>
+              <View style={{ flexDirection: "row" }}>
+                {item.producto?.imagen ? (
+                  <Image source={{ uri: item.producto.imagen }} style={styles.offerImage} />
+                ) : (
+                  <View style={[styles.offerImagePlaceholder, { backgroundColor: isDark ? "#2c2c2c" : "#f0f0f0" }]}>
+                    <Ionicons name="fast-food-outline" size={24} color={isDark ? "#81C784" : "#2E7D32"} />
+                  </View>
+                )}
+                <View style={{ flex: 1 }}>
+                  <View style={styles.offerHeader}>
+                    <Text style={[styles.offerTitle, { color: colors.text }]} numberOfLines={1}>{item.titulo}</Text>
+                    <View style={styles.discountBadge}>
+                      <Text style={styles.discountText}>{item.descuento}% OFF</Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.offerDesc, { color: colors.subtext }]} numberOfLines={2}>{item.descripcion}</Text>
+                  <Text style={[styles.offerProduct, { color: colors.placeholder }]}>
+                    Producto: {item.producto?.nombre || "No especificado"}
+                  </Text>
+                  {item.fechaVencimiento && (
+                    <Text style={[styles.offerProduct, { color: "#C62828", marginTop: 4, fontWeight: "500" }]}>
+                      ⏰ Vence: {new Date(item.fechaVencimiento).toLocaleString("es-ES", {
+                        day: "numeric",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit"
+                      })}
+                    </Text>
+                  )}
                 </View>
               </View>
-              <Text style={[styles.offerDesc, { color: colors.subtext }]}>{item.descripcion}</Text>
-              <Text style={[styles.offerProduct, { color: colors.placeholder }]}>
-                Producto: {item.producto?.nombre || "No especificado"}
-              </Text>
               <View style={styles.offerActions}>
                 <TouchableOpacity style={styles.editButton} onPress={() => abrirEditar(item)}>
                   <Text style={styles.editButtonText}>Editar</Text>
@@ -352,7 +433,7 @@ export default function OffersScreen() {
             {productos.length === 0 ? (
               <View style={styles.selectModalEmpty}>
                 <Text style={[styles.selectModalEmptyText, { color: colors.subtext }]}>No tienes productos creados.</Text>
-                <Text style={[styles.selectModalEmptySubtext, { color: colors.placeholder }]}>Crea productos primero en la sección "Mis Productos".</Text>
+                <Text style={[styles.selectModalEmptySubtext, { color: colors.placeholder }]}>Crea productos primero en la sección &quot;Mis Productos&quot;.</Text>
               </View>
             ) : (
               <FlatList
@@ -703,5 +784,19 @@ const styles = StyleSheet.create({
   },
   selectProductListContent: {
     flexGrow: 1,
+  },
+  offerImage: {
+    width: 70,
+    height: 70,
+    borderRadius: 8,
+    marginRight: 12,
+  },
+  offerImagePlaceholder: {
+    width: 70,
+    height: 70,
+    borderRadius: 8,
+    marginRight: 12,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

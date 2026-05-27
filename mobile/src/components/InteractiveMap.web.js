@@ -41,7 +41,8 @@ export default function InteractiveMap({
           })
         }).addTo(map);
 
-        storeMarker.bindPopup('<b>${store.nombre.replace(/'/g, "\\'")}</b><br>${store.direccion.replace(/'/g, "\\'")}${isSelected ? "<br><i>(Seleccionado)</i>" : ""}');
+        var ratingVal = ${store.totalCalificaciones || 0} > 0 ? '⭐ ' + (${store.promedioCalificaciones || 0}).toFixed(1) + ' (${store.totalCalificaciones || 0})' : '⭐ Sin calificaciones';
+        storeMarker.bindPopup('<b>${store.nombre.replace(/'/g, "\\'")}</b><br>${store.direccion.replace(/'/g, "\\'")}<br>' + ratingVal + '${isSelected ? "<br><i>(Seleccionado)</i>" : ""}');
         
         storeMarker.on('click', function() {
           window.parent.postMessage({ type: 'STORE_SELECTED', storeId: '${store._id}' }, '*');

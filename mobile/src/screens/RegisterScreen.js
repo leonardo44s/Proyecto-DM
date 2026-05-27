@@ -17,39 +17,65 @@ import { api } from "../services/api";
 import { Ionicons } from "@expo/vector-icons";
 
 export default function RegisterScreen({ navigation }) {
+  const [step, setStep] = useState(1); // Step 1: Basic Info, Step 2: Role & Details
+
+  // Basic Info (Step 1)
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [rol, setRol] = useState("customer");
-  const [loading, setLoading] = useState(false);
 
-  // Campos adicionales para comerciantes
-  const [direccion, setDireccion] = useState("");
+  // Role & Details (Step 2)
+  const [rol, setRol] = useState("customer"); // customer (Vecino) or merchant (Comerciante)
   const [nombreTienda, setNombreTienda] = useState("");
+  const [direccion, setDireccion] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  
+  const [loading, setLoading] = useState(false);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [coords, setCoords] = useState(null);
 
   const isDark = useColorScheme() === "dark";
   const colors = {
-    bg: isDark ? "#121212" : "#f5f5f5",
+    bg: isDark ? "#121212" : "#F4FDF7",
     card: isDark ? "#1e1e1e" : "#ffffff",
     text: isDark ? "#ffffff" : "#333333",
     label: isDark ? "#cccccc" : "#555555",
     subtext: isDark ? "#aaaaaa" : "#666666",
-    placeholder: isDark ? "#777777" : "#999999",
-    border: isDark ? "#333333" : "#dddddd",
-    inputBg: isDark ? "#2a2a2a" : "#fafafa",
-    helper: isDark ? "#aaaaaa" : "#888888",
-    infoBgCustomer: isDark ? "rgba(25, 118, 210, 0.15)" : "#E3F2FD",
-    infoBgMerchant: isDark ? "rgba(46, 125, 50, 0.15)" : "#E8F5E9",
-    infoTitle: isDark ? "#ffffff" : "#333333",
-    infoText: isDark ? "#dddddd" : "#555555",
+    placeholder: isDark ? "#555555" : "#bbbbbb",
+    border: isDark ? "#333333" : "#E0E0E0",
+    inputBg: isDark ? "#2a2a2a" : "#F9F9F9",
+    primary: "#00B050", // Brand Green
+    primaryLight: "#E8F5E9",
+    orange: "#FF9800", // Merchant brand color in dashboard mockup
+    orangeLight: "#FFF3E0",
   };
 
   const showAlert = (msg, title = "Aviso") => {
     if (Platform.OS === "web") window.alert(msg);
     else Alert.alert(title, msg);
+  };
+
+  const handleStep1Continue = () => {
+    if (!nombre.trim() || !email.trim() || !password || !confirmPassword) {
+      showAlert("Por favor llena todos los campos.");
+      return;
+    }
+    if (password.length < 6) {
+      showAlert("La contraseña debe tener al menos 6 caracteres.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      showAlert("Las contraseñas no coinciden.");
+      return;
+    }
+    // Simple email regex validation
+    const emailRegex = /\S+@\S+\.\S+/;
+    if (!emailRegex.test(email.trim())) {
+      showAlert("Por favor ingresa un correo electrónico válido.");
+      return;
+    }
+    setStep(2);
   };
 
   const usarGpsUbicacion = async () => {
@@ -67,7 +93,6 @@ export default function RegisterScreen({ navigation }) {
       const lng = location.coords.longitude;
       setCoords([lng, lat]);
 
-      // Intentar revertir geocodificación mediante Nominatim
       const response = await fetch(
         `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
         {
@@ -76,7 +101,6 @@ export default function RegisterScreen({ navigation }) {
       );
       const data = await response.json();
       if (data && data.address) {
-        // Formatear dirección amigable
         const road = data.address.road || "";
         const houseNumber = data.address.house_number || "";
         const suburb = data.address.suburb || data.address.neighbourhood || "";
@@ -85,7 +109,7 @@ export default function RegisterScreen({ navigation }) {
         let addressStr = "";
         if (road) {
           addressStr += road;
-          if (houseNumber) addressStr += ` ${houseNumber}`;
+          if (houseNumber) addressStr += ` # ${houseNumber}`;
         }
         if (suburb) addressStr += `, ${suburb}`;
         if (city) addressStr += `, ${city}`;
@@ -103,23 +127,15 @@ export default function RegisterScreen({ navigation }) {
   };
 
   const registrar = async () => {
-    if (!nombre.trim() || !email.trim() || !password) {
-      showAlert("Por favor llena todos los campos obligatorios.");
-      return;
-    }
-    if (password.length < 6) {
-      showAlert("La contraseña debe tener al menos 6 caracteres.");
-      return;
-    }
-    if (password !== confirmPassword) {
-      showAlert("Las contraseñas no coinciden.");
-      return;
-    }
     if (rol === "merchant") {
       if (!nombreTienda.trim() || !direccion.trim()) {
-        showAlert("Comerciantes deben ingresar nombre del comercio y dirección.");
+        showAlert("Como comerciante debes ingresar el nombre del comercio y su dirección.");
         return;
       }
+    }
+    if (!acceptedTerms) {
+      showAlert("Debes aceptar los términos y condiciones de ResYet para crear tu cuenta.");
+      return;
     }
 
     setLoading(true);
@@ -147,179 +163,243 @@ export default function RegisterScreen({ navigation }) {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <View style={[styles.formCard, { backgroundColor: colors.card }]}>
-          <Text style={[styles.titulo, { color: colors.text }]}>Crear cuenta</Text>
-          <Text style={[styles.subtitulo, { color: colors.subtext }]}>Únete a la comunidad Anti-Caducidad</Text>
+        
+        {/* LOGO & BRAND */}
+        <View style={styles.logoContainer}>
+          <View style={[styles.logoCircle, { backgroundColor: colors.primary }]}>
+            <Ionicons name="leaf" size={34} color="#fff" />
+          </View>
+          <Text style={[styles.appName, { color: colors.primary }]}>ResYet</Text>
+          <Text style={[styles.tagline, { color: colors.subtext }]}>Únete a nuestra comunidad</Text>
+        </View>
 
-          <Text style={[styles.label, { color: colors.label }]}>Nombre completo *</Text>
-          <TextInput
-            placeholder="Tu nombre"
-            placeholderTextColor={colors.placeholder}
-            style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-            value={nombre}
-            onChangeText={setNombre}
-          />
+        {/* PROGRESS STEP BAR */}
+        <View style={styles.progressContainer}>
+          <View style={[styles.progressLine, { backgroundColor: step >= 2 ? colors.primary : colors.border }]} />
+          <View style={styles.stepsWrapper}>
+            <View style={[styles.stepCircle, step >= 1 ? { backgroundColor: colors.primary } : { backgroundColor: colors.border }]}>
+              <Text style={styles.stepCircleText}>1</Text>
+            </View>
+            <View style={[styles.stepCircle, step >= 2 ? { backgroundColor: colors.primary } : { backgroundColor: colors.border }]}>
+              <Text style={styles.stepCircleText}>2</Text>
+            </View>
+          </View>
+        </View>
 
-          <Text style={[styles.label, { color: colors.label }]}>Correo electrónico *</Text>
-          <TextInput
-            placeholder="tu@correo.com"
-            placeholderTextColor={colors.placeholder}
-            style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            autoComplete="email"
-          />
-
-          <Text style={[styles.label, { color: colors.label }]}>Contraseña *</Text>
-          <TextInput
-            placeholder="Mínimo 6 caracteres"
-            placeholderTextColor={colors.placeholder}
-            style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
-
-          <Text style={[styles.label, { color: colors.label }]}>Confirmar contraseña *</Text>
-          <TextInput
-            placeholder="Repite tu contraseña"
-            placeholderTextColor={colors.placeholder}
-            style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            secureTextEntry
-          />
-
-          <Text style={[styles.label, { color: colors.label }]}>Tipo de cuenta</Text>
-          <View style={styles.roleSelectorContainer}>
-            <TouchableOpacity
-              style={[
-                styles.roleOption,
-                { backgroundColor: colors.inputBg, borderColor: colors.border },
-                rol === "customer" && { backgroundColor: "#1976D2", borderColor: "#1976D2" },
-              ]}
-              onPress={() => setRol("customer")}
-            >
-              <Ionicons
-                name="people"
-                size={20}
-                color={rol === "customer" ? "#fff" : "#1976D2"}
-              />
-              <Text
-                style={[
-                  styles.roleOptionText,
-                  { color: colors.label },
-                  rol === "customer" && { color: "#fff" },
-                ]}
-              >
-                Cliente
-              </Text>
-            </TouchableOpacity>
+        {/* STEP 1: BASIC INFO */}
+        {step === 1 && (
+          <View style={[styles.formCard, { backgroundColor: colors.card, shadowColor: isDark ? "#000" : "#a8d3b9" }]}>
+            <Text style={[styles.stepTitle, { color: colors.text }]}>Paso 1: Información Básica</Text>
             
-            <TouchableOpacity
-              style={[
-                styles.roleOption,
-                { backgroundColor: colors.inputBg, borderColor: colors.border },
-                rol === "merchant" && { backgroundColor: "#2E7D32", borderColor: "#2E7D32" },
-              ]}
-              onPress={() => setRol("merchant")}
+            <Text style={[styles.label, { color: colors.label }]}>Nombre</Text>
+            <TextInput
+              placeholder="Tu nombre"
+              placeholderTextColor={colors.placeholder}
+              style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+              value={nombre}
+              onChangeText={setNombre}
+            />
+
+            <Text style={[styles.label, { color: colors.label }]}>Email</Text>
+            <TextInput
+              placeholder="tu@email.com"
+              placeholderTextColor={colors.placeholder}
+              style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              autoComplete="email"
+            />
+
+            <Text style={[styles.label, { color: colors.label }]}>Contraseña</Text>
+            <TextInput
+              placeholder="********"
+              placeholderTextColor={colors.placeholder}
+              style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoComplete="password-new"
+            />
+
+            <Text style={[styles.label, { color: colors.label }]}>Confirmar Contraseña</Text>
+            <TextInput
+              placeholder="********"
+              placeholderTextColor={colors.placeholder}
+              style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry
+            />
+
+            {/* CONTINUE BUTTON */}
+            <TouchableOpacity 
+              style={[styles.actionButton, { backgroundColor: colors.primary }]} 
+              onPress={handleStep1Continue}
+              activeOpacity={0.8}
             >
-              <Ionicons
-                name="storefront"
-                size={20}
-                color={rol === "merchant" ? "#fff" : "#2E7D32"}
-              />
-              <Text
-                style={[
-                  styles.roleOptionText,
-                  { color: colors.label },
-                  rol === "merchant" && { color: "#fff" },
-                ]}
-              >
-                Comerciante
-              </Text>
+              <Text style={styles.actionButtonText}>Continuar</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.loginLink}
+              onPress={() => navigation.navigate("Iniciar sesion")}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.loginLinkText, { color: colors.primary }]}>¿Ya tienes cuenta? Inicia sesión</Text>
             </TouchableOpacity>
           </View>
+        )}
 
-          {/* Campos adicionales de Comerciante */}
-          {rol === "merchant" && (
-            <View style={styles.merchantSection}>
-              <Text style={[styles.label, { color: colors.label }]}>Nombre de tu Comercio *</Text>
-              <TextInput
-                placeholder="Ej: Minimercado La Esquina"
-                placeholderTextColor={colors.placeholder}
-                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-                value={nombreTienda}
-                onChangeText={setNombreTienda}
-              />
+        {/* STEP 2: ROLE SELECTOR & DETAILED FORM */}
+        {step === 2 && (
+          <View style={[styles.formCard, { backgroundColor: colors.card, shadowColor: isDark ? "#000" : "#a8d3b9" }]}>
+            <Text style={[styles.stepTitle, { color: colors.text }]}>Paso 2: Selecciona tu Rol</Text>
+            
+            {/* ROLE CARDS CONTAINER */}
+            <View style={styles.roleCardContainer}>
+              
+              {/* CUSTOMER CARD */}
+              <TouchableOpacity
+                style={[
+                  styles.roleCard,
+                  { backgroundColor: colors.inputBg, borderColor: colors.border },
+                  rol === "customer" && { 
+                    borderColor: colors.primary, 
+                    backgroundColor: isDark ? "rgba(0, 176, 80, 0.15)" : colors.primaryLight,
+                    borderWidth: 2 
+                  }
+                ]}
+                onPress={() => setRol("customer")}
+                activeOpacity={0.85}
+              >
+                <View style={[styles.roleIconCircle, { backgroundColor: rol === "customer" ? colors.primary : colors.border }]}>
+                  <Ionicons name="people" size={24} color={rol === "customer" ? "#fff" : colors.label} />
+                </View>
+                <View style={styles.roleCardText}>
+                  <Text style={[styles.roleCardTitle, { color: rol === "customer" ? colors.primary : colors.text }]}>
+                    Vecino/Cliente
+                  </Text>
+                  <Text style={[styles.roleCardDesc, { color: colors.subtext }]}>
+                    Rescata alimentos a precios reducidos
+                  </Text>
+                </View>
+              </TouchableOpacity>
 
-              <Text style={[styles.label, { color: colors.label }]}>Dirección del Comercio *</Text>
-              <View style={styles.addressContainer}>
+              {/* MERCHANT CARD */}
+              <TouchableOpacity
+                style={[
+                  styles.roleCard,
+                  { backgroundColor: colors.inputBg, borderColor: colors.border },
+                  rol === "merchant" && { 
+                    borderColor: colors.orange, 
+                    backgroundColor: isDark ? "rgba(255, 152, 0, 0.15)" : colors.orangeLight,
+                    borderWidth: 2
+                  }
+                ]}
+                onPress={() => setRol("merchant")}
+                activeOpacity={0.85}
+              >
+                <View style={[styles.roleIconCircle, { backgroundColor: rol === "merchant" ? colors.orange : colors.border }]}>
+                  <Ionicons name="storefront" size={24} color={rol === "merchant" ? "#fff" : colors.label} />
+                </View>
+                <View style={styles.roleCardText}>
+                  <Text style={[styles.roleCardTitle, { color: rol === "merchant" ? colors.orange : colors.text }]}>
+                    Comerciante
+                  </Text>
+                  <Text style={[styles.roleCardDesc, { color: colors.subtext }]}>
+                    Reduce el desperdicio de tu comercio
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            {/* CONDITIONAL MERCHANT FORM FIELDS */}
+            {rol === "merchant" && (
+              <View style={styles.merchantSection}>
+                <Text style={[styles.label, { color: colors.label }]}>Nombre de tu Comercio *</Text>
                 <TextInput
-                  placeholder="Ej: Calle 5 # 38-14, Cali"
+                  placeholder="Ej: Panadería El Horno"
                   placeholderTextColor={colors.placeholder}
-                  style={[styles.addressInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-                  value={direccion}
-                  onChangeText={(text) => {
-                    setDireccion(text);
-                    setCoords(null);
-                  }}
+                  style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                  value={nombreTienda}
+                  onChangeText={setNombreTienda}
                 />
-                <TouchableOpacity
-                  style={[styles.gpsButton, gpsLoading && styles.buttonDisabled]}
-                  onPress={usarGpsUbicacion}
-                  disabled={gpsLoading}
-                >
-                  {gpsLoading ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Ionicons name="locate" size={20} color="#fff" />
-                  )}
-                </TouchableOpacity>
+
+                <Text style={[styles.label, { color: colors.label }]}>Dirección del Comercio *</Text>
+                <View style={styles.addressContainer}>
+                  <TextInput
+                    placeholder="Ej: Calle del Pan 45"
+                    placeholderTextColor={colors.placeholder}
+                    style={[styles.addressInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                    value={direccion}
+                    onChangeText={(text) => {
+                      setDireccion(text);
+                      setCoords(null);
+                    }}
+                  />
+                  <TouchableOpacity
+                    style={[styles.gpsButton, { backgroundColor: colors.orange }, gpsLoading && styles.buttonDisabled]}
+                    onPress={usarGpsUbicacion}
+                    disabled={gpsLoading}
+                    activeOpacity={0.8}
+                  >
+                    {gpsLoading ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Ionicons name="locate" size={20} color="#fff" />
+                    )}
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.gpsHelper}>
+                  Toca el botón GPS para autocompletar la ubicación.
+                </Text>
               </View>
-              <Text style={[styles.helperText, { color: colors.helper }]}>
-                Usa el GPS para rellenar automáticamente la dirección.
+            )}
+
+            {/* CHECKBOX TERMS */}
+            <View style={styles.termsContainer}>
+              <TouchableOpacity 
+                style={[
+                  styles.checkbox, 
+                  { borderColor: colors.primary },
+                  acceptedTerms && { backgroundColor: colors.primary }
+                ]}
+                onPress={() => setAcceptedTerms(!acceptedTerms)}
+                activeOpacity={0.8}
+              >
+                {acceptedTerms && <Ionicons name="checkmark" size={14} color="#fff" />}
+              </TouchableOpacity>
+              <Text style={[styles.termsText, { color: colors.subtext }]}>
+                Acepto los términos y condiciones de ResYet
               </Text>
             </View>
-          )}
 
-          {rol === "customer" && (
-            <View style={[styles.roleInfo, { backgroundColor: colors.infoBgCustomer }]}>
-              <Text style={[styles.roleInfoTitle, { color: colors.infoTitle }]}>Como cliente podrás:</Text>
-              <Text style={[styles.roleInfoText, { color: colors.infoText }]}>- Ver ofertas de productos próximos a vencer</Text>
-              <Text style={[styles.roleInfoText, { color: colors.infoText }]}>- Reservar productos con descuento</Text>
-              <Text style={[styles.roleInfoText, { color: colors.infoText }]}>- Recibir notificaciones de nuevas ofertas</Text>
-            </View>
-          )}
+            {/* ACTION BUTTONS */}
+            <TouchableOpacity 
+              style={[styles.actionButton, { backgroundColor: colors.primary }, loading && styles.buttonDisabled]} 
+              onPress={registrar}
+              disabled={loading}
+              activeOpacity={0.85}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.actionButtonText}>Crear cuenta</Text>
+              )}
+            </TouchableOpacity>
 
-          {rol === "merchant" && (
-            <View style={[styles.roleInfo, { backgroundColor: colors.infoBgMerchant }]}>
-              <Text style={[styles.roleInfoTitle, { color: colors.infoTitle }]}>Como comerciante podrás:</Text>
-              <Text style={[styles.roleInfoText, { color: colors.infoText }]}>- Publicar tus productos</Text>
-              <Text style={[styles.roleInfoText, { color: colors.infoText }]}>- Crear ofertas con descuentos</Text>
-              <Text style={[styles.roleInfoText, { color: colors.infoText }]}>- Gestionar reservas de clientes</Text>
-            </View>
-          )}
+            <TouchableOpacity 
+              style={styles.backButton} 
+              onPress={() => setStep(1)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.backButtonText, { color: colors.subtext }]}>Volver</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
-          <TouchableOpacity
-            style={[styles.registerButton, loading && styles.buttonDisabled]}
-            onPress={registrar}
-            disabled={loading}
-          >
-            <Text style={styles.registerButtonText}>
-              {loading ? "Registrando..." : "Crear cuenta"}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.loginLink}
-            onPress={() => navigation.navigate("Iniciar sesion")}
-          >
-            <Text style={styles.loginLinkText}>Ya tengo una cuenta</Text>
-          </TouchableOpacity>
-        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -328,132 +408,107 @@ export default function RegisterScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
   },
   scrollContent: {
     flexGrow: 1,
     padding: 24,
     justifyContent: "center",
   },
-  formCard: {
-    backgroundColor: "#fff",
-    padding: 24,
-    borderRadius: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+  logoContainer: {
+    alignItems: "center",
+    marginBottom: 16,
   },
-  titulo: {
+  logoCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
+    shadowColor: "#00B050",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  appName: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#333",
-    textAlign: "center",
   },
-  subtitulo: {
+  tagline: {
     fontSize: 14,
-    color: "#666",
-    textAlign: "center",
-    marginBottom: 24,
+    marginTop: 2,
+  },
+  progressContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    height: 36,
+    marginVertical: 12,
+  },
+  progressLine: {
+    position: "absolute",
+    width: "45%",
+    height: 3,
+    top: 17,
+    zIndex: 1,
+  },
+  stepsWrapper: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "50%",
+    zIndex: 2,
+  },
+  stepCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  stepCircleText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "bold",
+  },
+  formCard: {
+    padding: 24,
+    borderRadius: 20,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  stepTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 20,
+    textAlign: "left",
   },
   label: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#555",
-    marginBottom: 8,
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 6,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 16,
-    backgroundColor: "#fafafa",
-    fontSize: 16,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    marginBottom: 14,
+    fontSize: 15,
   },
-  roleSelectorContainer: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 16,
-  },
-  roleOption: {
-    flex: 1,
-    flexDirection: "row",
+  actionButton: {
+    padding: 15,
+    borderRadius: 12,
     alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 10,
-    paddingVertical: 14,
-    backgroundColor: "#fafafa",
-    gap: 8,
+    elevation: 2,
+    marginTop: 10,
   },
-  roleOptionText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#555",
-  },
-  merchantSection: {
-    marginBottom: 16,
-  },
-  addressContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  addressInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 10,
-    padding: 14,
-    backgroundColor: "#fafafa",
-    fontSize: 16,
-  },
-  gpsButton: {
-    backgroundColor: "#1976D2",
-    width: 48,
-    height: 48,
-    borderRadius: 10,
-    marginLeft: 8,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  helperText: {
-    fontSize: 11,
-    color: "#888",
-    marginLeft: 4,
-    marginBottom: 8,
-  },
-  roleInfo: {
-    backgroundColor: "#E3F2FD",
-    padding: 14,
-    borderRadius: 10,
-    marginBottom: 16,
-  },
-  roleInfoMerchant: {
-    backgroundColor: "#E8F5E9",
-  },
-  roleInfoTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 6,
-  },
-  roleInfoText: {
-    fontSize: 13,
-    color: "#555",
-    lineHeight: 20,
-  },
-  registerButton: {
-    backgroundColor: "#2E7D32",
-    padding: 16,
-    borderRadius: 10,
-    alignItems: "center",
-    marginTop: 8,
-  },
-  registerButtonText: {
+  actionButtonText: {
     color: "#fff",
     fontWeight: "bold",
     fontSize: 16,
@@ -462,12 +517,107 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   loginLink: {
-    padding: 16,
+    paddingVertical: 14,
     alignItems: "center",
+    marginTop: 8,
   },
   loginLinkText: {
-    color: "#2E7D32",
+    fontSize: 14,
     fontWeight: "600",
+  },
+  roleCardContainer: {
+    gap: 14,
+    marginBottom: 20,
+  },
+  roleCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    elevation: 1,
+  },
+  roleIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 16,
+  },
+  roleCardText: {
+    flex: 1,
+  },
+  roleCardTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  roleCardDesc: {
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  merchantSection: {
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  addressContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  addressInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
     fontSize: 15,
+  },
+  gpsButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    marginLeft: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 2,
+  },
+  gpsHelper: {
+    fontSize: 11,
+    color: "#888",
+    marginTop: 4,
+    marginLeft: 2,
+  },
+  termsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 16,
+    paddingRight: 8,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 2,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+  },
+  termsText: {
+    fontSize: 13,
+    lineHeight: 18,
+    flex: 1,
+  },
+  backButton: {
+    alignItems: "center",
+    paddingVertical: 12,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+    borderRadius: 12,
+  },
+  backButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
   },
 });

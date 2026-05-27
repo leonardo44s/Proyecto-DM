@@ -155,4 +155,65 @@ router.put("/profile", auth, async (req, res) => {
   }
 });
 
+// FORGOT PASSWORD
+router.post("/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ message: "El correo electrónico es obligatorio" });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      // Por seguridad para evitar enumeración, devolvemos un mensaje genérico exitoso.
+      return res.json({ message: "Si el correo está registrado, se enviará un código de verificación." });
+    }
+
+    // Generar código de 6 dígitos
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    user.resetPasswordToken = code;
+    user.resetPasswordExpires = Date.now() + 3600000; // 1 hora
+    await user.save();
+
+    const { sendResetEmail } = require("../utils/mailer");
+    await sendResetEmail(user.email, code);
+
+    res.json({ message: "Código de recuperación enviado al correo." });
+  } catch (err) {
+    console.error("Error en forgot-password:", err);
+    res.status(500).json({ message: "Error al procesar la solicitud" });
+  }
+});
+
+// RESET PASSWORD
+router.post("/reset-password", async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body;
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ message: "Todos los campos son obligatorios" });
+    }
+
+    const user = await User.findOne({
+      email,
+      resetPasswordToken: code,
+      resetPasswordExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: "Código inválido o expirado" });
+    }
+
+    // Guardar nueva contraseña (activará el pre-save hook para hashing)
+    user.password = newPassword;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    res.json({ message: "Contraseña restablecida con éxito." });
+  } catch (err) {
+    console.error("Error en reset-password:", err);
+    res.status(500).json({ message: "Error al restablecer la contraseña" });
+  }
+});
+
 module.exports = router;

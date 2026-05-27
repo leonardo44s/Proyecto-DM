@@ -47,11 +47,15 @@ function PulsingStoreMarker({ store, isSelected, onPress }) {
     outputRange: [0.6, 0.2, 0],
   });
 
+  const ratingStr = store.totalCalificaciones > 0 
+    ? `⭐ ${store.promedioCalificaciones.toFixed(1)} (${store.totalCalificaciones})` 
+    : "⭐ Sin calificaciones";
+
   return (
     <Marker
       coordinate={{ latitude: lat, longitude: lng }}
       title={store.nombre}
-      description={store.direccion}
+      description={`${store.direccion} | ${ratingStr}`}
       onPress={onPress}
     >
       <View style={styles.markerContainer}>

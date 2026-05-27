@@ -3,6 +3,7 @@ import {
   View,
   Text,
   FlatList,
+  ScrollView,
   TouchableOpacity,
   Alert,
   Modal,
@@ -13,18 +14,17 @@ import {
   RefreshControl,
   Image,
   useColorScheme,
-  ScrollView,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../services/api";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import InteractiveMap from "../components/InteractiveMap";
 
 const CATEGORIAS = ["Todos", "Panadería", "Frutas/Verduras", "Lácteos", "Platos Preparados", "Otros"];
+const FILTROS = ["Cerca de ti", "Ofertas Relámpago", "Por Caducar"];
 
-export default function OfertasClienteScreen({ navigation }) {
+export default function ExplorarScreen({ navigation }) {
   const isDark = useColorScheme() === "dark";
   const colors = {
     bg: isDark ? "#121212" : "#F4FDF7",
@@ -39,18 +39,16 @@ export default function OfertasClienteScreen({ navigation }) {
     orange: "#FF9800",
     orangeLight: "#FFF3E0",
     danger: "#D32F2F",
-    blueBg: isDark ? "rgba(25, 118, 210, 0.15)" : "#E3F2FD",
   };
 
   const [ofertas, setOfertas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   // Search & Filter state
   const [searchText, setSearchText] = useState("");
   const [selectedCategoria, setSelectedCategoria] = useState("Todos");
-  const [selectedStoreId, setSelectedStoreId] = useState(null);
+  const [activeFiltro, setActiveFiltro] = useState("Cerca de ti");
 
   // Reservation Modal state
   const [reservaModal, setReservaModal] = useState(false);
@@ -59,9 +57,9 @@ export default function OfertasClienteScreen({ navigation }) {
   const [notas, setNotas] = useState("");
   const [reservando, setReservando] = useState(false);
 
-  // Location state
+  // User location
   const [userCoords, setUserCoords] = useState(null);
-  const [locationLoading, setLocationLoading] = useState(false);
+  const [, setLocationLoading] = useState(false);
 
   const getAuthHeader = async () => ({
     headers: { Authorization: "Bearer " + (await AsyncStorage.getItem("token")) },
@@ -95,18 +93,12 @@ export default function OfertasClienteScreen({ navigation }) {
     }
   }, []);
 
-  const cargarDatos = useCallback(async () => {
+  const cargarOfertas = useCallback(async () => {
     try {
-      // Load offers
       const { data } = await api.get("/offers", await getAuthHeader());
       setOfertas(data);
-
-      // Load unread notifications
-      const notisRes = await api.get("/notifications", await getAuthHeader());
-      const unread = notisRes.data.filter((n) => !n.leida).length;
-      setUnreadNotifications(unread);
     } catch (e) {
-      console.error(e);
+      showAlert("Error cargando ofertas: " + (e?.response?.data?.message || e?.message));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -116,19 +108,19 @@ export default function OfertasClienteScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       obtenerUbicacion();
-      cargarDatos();
-    }, [cargarDatos, obtenerUbicacion])
+      cargarOfertas();
+    }, [cargarOfertas, obtenerUbicacion])
   );
 
   const onRefresh = () => {
     setRefreshing(true);
-    cargarDatos();
+    cargarOfertas();
   };
 
-  // Haversine distance
+  // Haversine formula to compute distance
   const calcularDistancia = useCallback((lat1, lon1, lat2, lon2) => {
     if (!lat1 || !lon1 || !lat2 || !lon2) return null;
-    const R = 6371;
+    const R = 6371; // Earth's radius in km
     const dLat = (lat2 - lat1) * (Math.PI / 180);
     const dLon = (lon2 - lon1) * (Math.PI / 180);
     const a =
@@ -141,45 +133,54 @@ export default function OfertasClienteScreen({ navigation }) {
     return R * c;
   }, []);
 
-  // Filter stores that have active offers
-  const tiendasUnicas = useMemo(() => {
-    const tiendas = [];
-    ofertas.forEach((o) => {
-      const tienda = o.producto?.tienda;
-      if (tienda && !tiendas.some((t) => t._id === tienda._id)) {
-        tiendas.push(tienda);
-      }
-    });
-    return tiendas;
-  }, [ofertas]);
-
-  // Filter & sort list of offers
+  // Filter & sort offers list
   const filteredOffers = useMemo(() => {
     return ofertas
       .filter((o) => {
+        // 1. Search text filter
         const matchSearch =
           o.titulo?.toLowerCase().includes(searchText.toLowerCase()) ||
           o.producto?.nombre?.toLowerCase().includes(searchText.toLowerCase()) ||
           o.producto?.tienda?.nombre?.toLowerCase().includes(searchText.toLowerCase());
 
+        // 2. Category filter
         const matchCat =
           selectedCategoria === "Todos" || o.producto?.categoria === selectedCategoria;
 
-        const matchStore = !selectedStoreId || o.producto?.tienda?._id === selectedStoreId;
-
-        return matchSearch && matchCat && matchStore;
+        return matchSearch && matchCat;
       })
       .map((o) => {
+        // Compute distance
         const [lng, lat] = o.producto?.tienda?.coords?.coordinates || [0, 0];
         const dist = userCoords ? calcularDistancia(userCoords.latitude, userCoords.longitude, lat, lng) : null;
         return { ...o, distancia: dist };
       })
-      .sort((a, b) => (a.distancia || 9999) - (b.distancia || 9999));
-  }, [ofertas, searchText, selectedCategoria, selectedStoreId, userCoords, calcularDistancia]);
+      .filter((o) => {
+        // 3. Row 2 Filters
+        if (activeFiltro === "Cerca de ti") {
+          return o.distancia === null || o.distancia <= 5.0; // Show closer or undefined
+        }
+        if (activeFiltro === "Ofertas Relámpago") {
+          return o.descuento && o.descuento >= 50; // 50% discount or more is flash
+        }
+        if (activeFiltro === "Por Caducar") {
+          if (!o.fechaVencimiento) return false;
+          const hrs = (new Date(o.fechaVencimiento) - new Date()) / (1000 * 60 * 60);
+          return hrs > 0 && hrs <= 12; // Expiring in under 12 hours
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        if (activeFiltro === "Cerca de ti") {
+          return (a.distancia || 9999) - (b.distancia || 9999);
+        }
+        return new Date(a.createdAt) - new Date(b.createdAt);
+      });
+  }, [ofertas, searchText, selectedCategoria, activeFiltro, userCoords, calcularDistancia]);
 
   const abrirReservar = (oferta) => {
     setSelectedOferta(oferta);
-    setFecha(new Date().toISOString().slice(0, 16).replace("T", " "));
+    setFecha(new Date().toISOString().slice(0, 16).replace("T", " ")); // Formato base
     setNotas("");
     setReservaModal(true);
   };
@@ -202,9 +203,9 @@ export default function OfertasClienteScreen({ navigation }) {
         },
         await getAuthHeader()
       );
-      showAlert("¡Reserva realizada con éxito!", "Éxito");
+      showAlert("¡Reserva realizada con éxito! Recibirás notificaciones del correo.", "Éxito");
       setReservaModal(false);
-      cargarDatos();
+      cargarOfertas();
     } catch (e) {
       showAlert("Error al reservar: " + (e?.response?.data?.message || e?.message));
     } finally {
@@ -215,20 +216,16 @@ export default function OfertasClienteScreen({ navigation }) {
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
       
-      {/* HEADER (ResYet & Bell) */}
+      {/* HEADER (EXPLORAR OFERTAS) */}
       <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: colors.primary }]}>ResYet</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Explorar Ofertas</Text>
         <TouchableOpacity 
-          style={styles.bellButton}
-          onPress={() => navigation.navigate("Notificaciones")}
+          style={styles.mapLink}
+          onPress={() => navigation.navigate("Mapa")}
           activeOpacity={0.7}
         >
-          <Ionicons name="notifications-outline" size={26} color={colors.text} />
-          {unreadNotifications > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{unreadNotifications}</Text>
-            </View>
-          )}
+          <Ionicons name="location" size={14} color={colors.primary} style={{ marginRight: 3 }} />
+          <Text style={[styles.mapLinkText, { color: colors.primary }]}>Ver Mapa</Text>
         </TouchableOpacity>
       </View>
 
@@ -236,7 +233,7 @@ export default function OfertasClienteScreen({ navigation }) {
       <View style={[styles.searchContainer, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
         <Ionicons name="search-outline" size={20} color={colors.subtext} style={styles.searchIcon} />
         <TextInput
-          placeholder="Buscar productos o comercios..."
+          placeholder="Buscar productos..."
           placeholderTextColor={colors.placeholder}
           style={[styles.searchInput, { color: colors.text }]}
           value={searchText}
@@ -258,10 +255,7 @@ export default function OfertasClienteScreen({ navigation }) {
                   { backgroundColor: colors.card, borderColor: colors.border },
                   isSelected && { backgroundColor: colors.primary, borderColor: colors.primary },
                 ]}
-                onPress={() => {
-                  setSelectedCategoria(cat);
-                  setSelectedStoreId(null);
-                }}
+                onPress={() => setSelectedCategoria(cat)}
                 activeOpacity={0.8}
               >
                 <Text
@@ -279,39 +273,47 @@ export default function OfertasClienteScreen({ navigation }) {
         </ScrollView>
       </View>
 
-      {/* MAP VIEW CONTAINER */}
-      <View style={styles.mapContainer}>
-        <InteractiveMap
-          userCoords={userCoords}
-          stores={tiendasUnicas}
-          selectedStoreId={selectedStoreId}
-          onStorePress={(storeId) => {
-            setSelectedStoreId(selectedStoreId === storeId ? null : storeId);
-          }}
-          onRecenter={obtenerUbicacion}
-          locationLoading={locationLoading}
-        />
+      {/* FILTER ROW 2 (Cerca de ti, Ofertas Relámpago, Por Caducar) */}
+      <View style={styles.filtersRowContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsScroll}>
+          {FILTROS.map((f) => {
+            const isActive = activeFiltro === f;
+            return (
+              <TouchableOpacity
+                key={f}
+                style={[
+                  styles.filterChip,
+                  { backgroundColor: colors.card, borderColor: colors.border },
+                  isActive && { backgroundColor: colors.primary, borderColor: colors.primary },
+                ]}
+                onPress={() => setActiveFiltro(f)}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    { color: colors.subtext },
+                    isActive && { color: "#ffffff", fontWeight: "bold" },
+                  ]}
+                >
+                  {f}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
-      {/* OFFERS LIST HEADER */}
-      <View style={styles.offersHeader}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Ofertas Cercanas</Text>
-        <TouchableOpacity 
-          onPress={() => navigation.navigate("Explorar")}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.viewAllText, { color: colors.primary }]}>Ver lista completa</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* LIST OF COMPACT CARDS */}
+      {/* VERTICAL OFFERS LIST */}
       {loading ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={{ color: colors.subtext, marginTop: 8 }}>Cargando ofertas...</Text>
         </View>
       ) : filteredOffers.length === 0 ? (
         <View style={styles.centerContainer}>
-          <Text style={{ color: colors.subtext }}>No hay comercios con ofertas cercanas</Text>
+          <Ionicons name="fast-food-outline" size={48} color={colors.placeholder} />
+          <Text style={[styles.emptyText, { color: colors.subtext }]}>No se encontraron ofertas</Text>
         </View>
       ) : (
         <FlatList
@@ -326,76 +328,88 @@ export default function OfertasClienteScreen({ navigation }) {
             const originalPrice = item.producto?.precioBase || 0;
             const discountPercentage = item.descuento || 0;
             const offerPrice = originalPrice * (1 - discountPercentage / 100);
-
-            // Format hours remaining
-            let timeRemainingText = "";
+            
+            // Format time remaining
+            let timeRemainingText = "Vence pronto";
             if (item.fechaVencimiento) {
               const diffMs = new Date(item.fechaVencimiento) - new Date();
               const diffHrs = Math.ceil(diffMs / (1000 * 60 * 60));
               if (diffHrs <= 0) {
                 timeRemainingText = "Expirado";
+              } else if (diffHrs < 24) {
+                timeRemainingText = `${diffHrs}h restantes`;
               } else {
-                timeRemainingText = `-${diffHrs}h`;
+                const days = Math.round(diffHrs / 24);
+                timeRemainingText = days === 1 ? "1 día restante" : `${days} días restantes`;
               }
             }
 
             return (
-              <TouchableOpacity
-                style={[styles.compactCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+              <TouchableOpacity 
+                style={[styles.offerCard, { backgroundColor: colors.card, borderColor: colors.border }]}
                 onPress={() => abrirReservar(item)}
-                activeOpacity={0.8}
+                activeOpacity={0.9}
               >
-                {/* Product image (left) */}
-                {item.producto?.imagen ? (
-                  <Image source={{ uri: item.producto.imagen }} style={styles.compactImage} />
-                ) : (
-                  <View style={[styles.compactImagePlaceholder, { backgroundColor: colors.primaryLight }]}>
-                    <Ionicons name="fast-food-outline" size={20} color={colors.primary} />
-                  </View>
-                )}
-
-                {/* Details (center) */}
-                <View style={styles.compactDetails}>
-                  <View style={styles.titleRow}>
-                    <Text style={[styles.compactTitle, { color: colors.text }]} numberOfLines={1}>
-                      {item.titulo}
-                    </Text>
-                    <View style={[styles.flashBadge, { backgroundColor: colors.orange }]}>
-                      <Text style={styles.flashBadgeText}>Flash</Text>
+                {/* LARGE HERO IMAGE WITH FLASH BADGE & FLOATING GREEN PRICE */}
+                <View style={styles.cardImageContainer}>
+                  {item.producto?.imagen ? (
+                    <Image source={{ uri: item.producto.imagen }} style={styles.cardImage} resizeMode="cover" />
+                  ) : (
+                    <View style={styles.cardPlaceholderImage}>
+                      <Ionicons name="fast-food-outline" size={48} color={colors.primary} />
                     </View>
+                  )}
+                  
+                  {/* Floating Flash Tag */}
+                  <View style={[styles.flashOfferTag, { backgroundColor: colors.orange }]}>
+                    <Ionicons name="flash" size={12} color="#fff" style={{ marginRight: 2 }} />
+                    <Text style={styles.flashOfferTagText}>Flash Offer</Text>
                   </View>
 
-                  <View style={styles.compactInfoRow}>
-                    <Ionicons name="storefront-outline" size={12} color={colors.subtext} style={{ marginRight: 3 }} />
-                    <Text style={[styles.compactStoreName, { color: colors.subtext }]} numberOfLines={1}>
-                      {item.producto?.tienda?.nombre || "Comercio Local"}
-                    </Text>
-                  </View>
-
-                  <View style={styles.compactInfoRow}>
-                    <Ionicons name="time-outline" size={12} color={colors.subtext} style={{ marginRight: 3 }} />
-                    <Text style={[styles.compactMetaText, { color: colors.subtext }]}>
-                      {timeRemainingText} {item.distancia !== null ? `• ${item.distancia.toFixed(1)}km` : ""}
-                    </Text>
-                  </View>
-
-                  {/* Pricing */}
-                  <View style={styles.pricingRow}>
-                    <Text style={[styles.strikethroughPrice, { color: colors.subtext }]}>
-                      ${originalPrice.toFixed(2)}
-                    </Text>
-                    <Text style={[styles.activePrice, { color: colors.primary }]}>
-                      ${offerPrice.toFixed(2)}
-                    </Text>
+                  {/* Floating Green Price bubble */}
+                  <View style={[styles.floatingPriceBubble, { backgroundColor: colors.primary }]}>
+                    <Text style={styles.floatingPriceText}>${offerPrice.toFixed(2)}</Text>
                   </View>
                 </View>
 
-                {/* Rating (right) */}
-                <View style={styles.ratingCol}>
-                  <Ionicons name="star" size={14} color="#FFC107" style={{ marginRight: 2 }} />
-                  <Text style={[styles.ratingText, { color: colors.text }]}>
-                    {item.producto?.tienda?.promedioCalificaciones ? item.producto.tienda.promedioCalificaciones.toFixed(1) : "4.5"}
-                  </Text>
+                {/* DETAILS SECTION BELOW IMAGE */}
+                <View style={styles.cardBody}>
+                  <Text style={[styles.offerTitle, { color: colors.text }]}>{item.titulo}</Text>
+                  {item.descripcion && (
+                    <Text style={[styles.offerDesc, { color: colors.subtext }]} numberOfLines={2}>
+                      {item.descripcion}
+                    </Text>
+                  )}
+
+                  {/* STORE INFO & RATING */}
+                  <View style={styles.storeRow}>
+                    <View style={styles.storeLeft}>
+                      <Ionicons name="storefront-outline" size={14} color={colors.subtext} style={{ marginRight: 4 }} />
+                      <Text style={[styles.storeName, { color: colors.text }]} numberOfLines={1}>
+                        {item.producto?.tienda?.nombre || "Comercio Local"}
+                      </Text>
+                      {item.distancia !== null && (
+                        <Text style={[styles.distanceText, { color: colors.subtext }]}>
+                          • {item.distancia.toFixed(1)}km de distancia
+                        </Text>
+                      )}
+                    </View>
+                    <View style={styles.ratingWrapper}>
+                      <Ionicons name="star" size={14} color="#FFC107" style={{ marginRight: 2 }} />
+                      <Text style={[styles.ratingVal, { color: colors.text }]}>
+                        {item.producto?.tienda?.promedioCalificaciones ? item.producto.tienda.promedioCalificaciones.toFixed(1) : "4.5"}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* TIME REMAINING & QUANTITY AVAILABLE */}
+                  <View style={styles.metaRow}>
+                    <View style={styles.metaLeft}>
+                      <Ionicons name="time-outline" size={14} color={colors.subtext} style={{ marginRight: 4 }} />
+                      <Text style={[styles.metaText, { color: colors.subtext }]}>{timeRemainingText}</Text>
+                    </View>
+                    <Text style={[styles.qtyText, { color: colors.primary }]}>8 disponibles</Text>
+                  </View>
                 </View>
               </TouchableOpacity>
             );
@@ -480,32 +494,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "bold",
   },
-  bellButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: "center",
+  mapLink: {
+    flexDirection: "row",
     alignItems: "center",
-    position: "relative",
-  },
-  badge: {
-    position: "absolute",
-    top: 6,
-    right: 6,
-    backgroundColor: "#FF5252",
+    paddingVertical: 4,
+    paddingHorizontal: 8,
     borderRadius: 8,
-    minWidth: 16,
-    height: 16,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 3,
   },
-  badgeText: {
-    color: "#fff",
-    fontSize: 9,
+  mapLinkText: {
+    fontSize: 13,
     fontWeight: "bold",
   },
   searchContainer: {
@@ -531,7 +531,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   categoriesContainer: {
-    marginBottom: 12,
+    marginBottom: 10,
+  },
+  filtersRowContainer: {
+    marginBottom: 14,
   },
   chipsScroll: {
     paddingHorizontal: 20,
@@ -547,123 +550,147 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
-  mapContainer: {
-    flex: 1,
-    marginHorizontal: 20,
-    borderRadius: 20,
-    overflow: "hidden",
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.05)",
   },
-  offersHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginHorizontal: 20,
-    marginTop: 18,
-    marginBottom: 10,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  viewAllText: {
-    fontSize: 13,
-    fontWeight: "bold",
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: "500",
   },
   listContent: {
     paddingHorizontal: 20,
     paddingBottom: 24,
-    gap: 12,
+    gap: 16,
   },
-  compactCard: {
-    flexDirection: "row",
-    borderRadius: 16,
+  offerCard: {
+    borderRadius: 20,
     borderWidth: 1,
-    padding: 12,
-    alignItems: "center",
-    elevation: 1,
+    overflow: "hidden",
+    elevation: 2,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 2,
+    shadowRadius: 4,
   },
-  compactImage: {
-    width: 68,
-    height: 68,
-    borderRadius: 12,
+  cardImageContainer: {
+    height: 180,
+    width: "100%",
+    position: "relative",
   },
-  compactImagePlaceholder: {
-    width: 68,
-    height: 68,
-    borderRadius: 12,
+  cardImage: {
+    height: "100%",
+    width: "100%",
+  },
+  cardPlaceholderImage: {
+    height: "100%",
+    width: "100%",
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "rgba(0, 176, 80, 0.05)",
   },
-  compactDetails: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  titleRow: {
+  flashOfferTag: {
+    position: "absolute",
+    top: 12,
+    right: 12,
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    elevation: 2,
   },
-  compactTitle: {
-    fontSize: 15,
-    fontWeight: "bold",
-    maxWidth: "75%",
-  },
-  flashBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  flashBadgeText: {
+  flashOfferTagText: {
     color: "#fff",
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: "bold",
   },
-  compactInfoRow: {
+  floatingPriceBubble: {
+    position: "absolute",
+    bottom: 12,
+    left: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    elevation: 2,
+  },
+  floatingPriceText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  cardBody: {
+    padding: 16,
+  },
+  offerTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  offerDesc: {
+    fontSize: 13,
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  storeRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 12,
+  },
+  storeLeft: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 3,
+    flex: 1,
+    paddingRight: 10,
   },
-  compactStoreName: {
+  storeName: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  distanceText: {
+    fontSize: 12,
+    marginLeft: 4,
+  },
+  ratingWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  ratingVal: {
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  metaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0,0,0,0.05)",
+    paddingTop: 10,
+  },
+  metaLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  metaText: {
     fontSize: 12,
     fontWeight: "500",
   },
-  compactMetaText: {
-    fontSize: 11,
-    fontWeight: "500",
-  },
-  pricingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 4,
-  },
-  strikethroughPrice: {
-    fontSize: 11,
-    textDecorationLine: "line-through",
-  },
-  activePrice: {
-    fontSize: 13,
-    fontWeight: "bold",
-  },
-  ratingCol: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingLeft: 8,
-  },
-  ratingText: {
-    fontSize: 13,
+  qtyText: {
+    fontSize: 12,
     fontWeight: "bold",
   },
   centerContainer: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 32,
+    paddingTop: 50,
+  },
+  emptyText: {
+    marginTop: 10,
+    fontSize: 15,
   },
   modalOverlay: {
     flex: 1,

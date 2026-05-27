@@ -6,7 +6,8 @@ const OfferSchema = new mongoose.Schema({
   descuento: Number,
   producto: { type: mongoose.Schema.Types.ObjectId, ref: "Product", required: true },
   usuario: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-  activa: { type: Boolean, default: true }
+  activa: { type: Boolean, default: true },
+  fechaVencimiento: Date
 }, { timestamps: true });
 
 module.exports = mongoose.models.Offer || mongoose.model("Offer", OfferSchema);

@@ -7,7 +7,9 @@ const UserSchema = new mongoose.Schema({
   password: { type: String, required: true },
   nombre: String,
   direccion: String,
-  rol: { type: String, enum: ["merchant", "customer", "admin"], default: "customer" }
+  rol: { type: String, enum: ["merchant", "customer", "admin"], default: "customer" },
+  resetPasswordToken: String,
+  resetPasswordExpires: Date
 }, { timestamps: true });
 
 // Pre-save hook - versión sin next()

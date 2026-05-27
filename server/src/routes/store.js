@@ -44,6 +44,101 @@ router.post("/", auth, roleGuard("merchant"), async (req, res) => {
   }
 });
 
+// Get stats for merchant dashboard
+router.get("/merchant/stats", auth, roleGuard("merchant"), async (req, res) => {
+  try {
+    const Product = require("../models/Products");
+    const Offer = require("../models/offer");
+    const Reservation = require("../models/Reservation");
+    
+    // Find the merchant's store
+    const store = await Store.findOne({ usuario: req.user.id });
+    if (!store) {
+      return res.status(404).json({ message: "No tienes una tienda registrada." });
+    }
+    
+    // Count active products
+    const activeProductsCount = await Product.countDocuments({ tienda: store._id });
+    
+    // Find merchant's offers
+    const offers = await Offer.find({ usuario: req.user.id });
+    const offerIds = offers.map(o => o._id);
+    
+    // Count pending reservations
+    const pendingReservationsCount = await Reservation.countDocuments({
+      oferta: { $in: offerIds },
+      estado: "pendiente"
+    });
+    
+    // Count completed (accepted/completada) rescues
+    const completedRescuesCount = await Reservation.countDocuments({
+      oferta: { $in: offerIds },
+      estado: { $in: ["aceptada", "completada"] }
+    });
+    
+    // Calculate saved food weight: each completed rescue represents ~1.5kg of food saved
+    const savedFoodWeight = Math.round(completedRescuesCount * 1.5 * 10) / 10;
+    
+    // Recent activities (last 5 reservations)
+    const recentReservations = await Reservation.find({ oferta: { $in: offerIds } })
+      .populate("usuario", "nombre")
+      .populate({ path: "oferta", populate: { path: "producto" } })
+      .sort({ createdAt: -1 })
+      .limit(5);
+      
+    const activities = recentReservations.map(reserva => {
+      const timeAgo = Math.round((new Date() - new Date(reserva.createdAt)) / 60000);
+      let timeStr = `Hace ${timeAgo} minutos`;
+      if (timeAgo >= 60) {
+        const hours = Math.round(timeAgo / 60);
+        timeStr = hours === 1 ? "Hace 1 hora" : `Hace ${hours} horas`;
+      }
+      if (timeAgo >= 1440) {
+        const days = Math.round(timeAgo / 1440);
+        timeStr = days === 1 ? "Hace 1 día" : `Hace ${days} días`;
+      }
+      
+      let tituloStr = "Nueva reserva";
+      let colorStr = "#1976D2";
+      
+      if (reserva.estado === "pendiente") {
+        tituloStr = "Nueva reserva confirmada";
+        colorStr = "#E65100";
+      } else if (reserva.estado === "aceptada") {
+        tituloStr = "Reserva aceptada";
+        colorStr = "#2E7D32";
+      } else if (reserva.estado === "completada") {
+        tituloStr = "Reserva entregada (completada)";
+        colorStr = "#1976D2";
+      } else if (reserva.estado === "cancelada" || reserva.estado === "rechazada") {
+        tituloStr = `Reserva ${reserva.estado}`;
+        colorStr = "#D32F2F";
+      }
+      
+      return {
+        id: reserva._id,
+        tipo: reserva.estado,
+        titulo: tituloStr,
+        descripcion: `${reserva.oferta?.producto?.nombre || 'Producto'} - por ${reserva.usuario?.nombre || 'Cliente'}`,
+        fecha: timeStr,
+        color: colorStr
+      };
+    });
+    
+    res.json({
+      storeName: store.nombre,
+      productosActivos: activeProductsCount,
+      reservasPendientes: pendingReservationsCount,
+      rescatesCompletados: completedRescuesCount,
+      alimentosSalvados: savedFoodWeight,
+      actividades: activities
+    });
+  } catch (err) {
+    console.error("Error al obtener estadísticas del comerciante:", err);
+    res.status(500).json({ message: "Error interno", error: err.message });
+  }
+});
+
 // Get Single
 router.get("/:id", async (req, res) => {
   const store = await Store.findById(req.params.id);

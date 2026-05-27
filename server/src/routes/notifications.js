@@ -20,4 +20,14 @@ router.put("/:id/leida", auth, async (req, res) => {
   res.json(noti);
 });
 
+// Eliminar notificación
+router.delete("/:id", auth, async (req, res) => {
+  try {
+    await Notification.deleteOne({ _id: req.params.id, usuario: req.user.id });
+    res.json({ message: "Notificación eliminada" });
+  } catch (err) {
+    res.status(500).json({ message: "Error al eliminar notificación", error: err });
+  }
+});
+
 module.exports = router;

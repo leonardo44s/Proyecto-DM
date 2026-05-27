@@ -10,12 +10,14 @@ import {
   Platform,
   StyleSheet,
   ActivityIndicator,
+  useColorScheme,
+  Image,
   ScrollView,
-  useColorScheme
+  RefreshControl
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../services/api";
-import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 
 const CATEGORIAS = ["Panadería", "Frutas/Verduras", "Lácteos", "Platos Preparados", "Otros"];
@@ -23,515 +25,355 @@ const CATEGORIAS = ["Panadería", "Frutas/Verduras", "Lácteos", "Platos Prepara
 export default function ProductsScreen() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [, setStore] = useState(null);
+
+  // Add Product State
+  const [addModal, setAddModal] = useState(false);
   const [nombre, setNombre] = useState("");
   const [desc, setDesc] = useState("");
   const [precio, setPrecio] = useState("");
   const [categoria, setCategoria] = useState("Panadería");
+  const [imagen, setImagen] = useState("");
+
+  // Edit Product State
   const [editModal, setEditModal] = useState(false);
   const [editId, setEditId] = useState(null);
   const [editNombre, setEditNombre] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [editPrecio, setEditPrecio] = useState("");
   const [editCategoria, setEditCategoria] = useState("Panadería");
-  
-  // Estado para la tienda del comerciante
-  const [miTienda, setMiTienda] = useState(null);
-  const [showStoreModal, setShowStoreModal] = useState(false);
-  const [storeNombre, setStoreNombre] = useState("");
-  const [storeDireccion, setStoreDireccion] = useState("");
-  const [storeHorarioApertura, setStoreHorarioApertura] = useState("08:00");
-  const [storeHorarioCierre, setStoreHorarioCierre] = useState("20:00");
-  const [gpsLoading, setGpsLoading] = useState(false);
-  const [coords, setCoords] = useState(null);
+  const [editImagen, setEditImagen] = useState("");
 
-  // Modales de categoría personalizados
+  // Quick Flash Offer State
+  const [flashModal, setFlashModal] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [flashTitle, setFlashTitle] = useState("");
+  const [flashDesc, setFlashDesc] = useState("");
+  const [flashDiscount, setFlashDiscount] = useState("50"); // Default 50% discount
+  const [flashQty, setFlashQty] = useState("5");
+  const [flashExpiry, setFlashExpiry] = useState("");
+  const [creatingFlash, setCreatingFlash] = useState(false);
+
+  // Category selectors
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showEditCategoryModal, setShowEditCategoryModal] = useState(false);
 
   const isDark = useColorScheme() === "dark";
   const colors = {
-    bg: isDark ? "#121212" : "#f5f5f5",
+    bg: isDark ? "#121212" : "#f8f9fa",
     card: isDark ? "#1e1e1e" : "#ffffff",
-    text: isDark ? "#ffffff" : "#333333",
-    label: isDark ? "#cccccc" : "#555555",
-    subtext: isDark ? "#aaaaaa" : "#666666",
-    placeholder: isDark ? "#777777" : "#999999",
-    border: isDark ? "#333333" : "#dddddd",
-    inputBg: isDark ? "#2a2a2a" : "#fafafa",
-    modalOverlay: isDark ? "rgba(0,0,0,0.7)" : "rgba(0,0,0,0.5)",
-    storeInfoBg: isDark ? "#2e7d3222" : "#E8F5E9",
-    primary: "#2E7D32",
-    white: "#ffffff",
+    text: isDark ? "#ffffff" : "#212529",
+    subtext: isDark ? "#aaaaaa" : "#6c757d",
+    placeholder: isDark ? "#555555" : "#bbbbbb",
+    border: isDark ? "#2a2a2a" : "#E0E0E0",
+    inputBg: isDark ? "#2a2a2a" : "#ffffff",
+    orangeHeader: "#EF6C00", // Merchant Orange
+    greenButton: "#00B050", // Merchant add product button green
+    orangeButton: "#FF9800", // Flash orange button
+    danger: "#D32F2F",
+    divider: isDark ? "#2a2a2a" : "#f1f3f5",
   };
 
-  const usarGpsUbicacion = async () => {
+  const getAuthHeader = async () => ({
+    headers: { Authorization: "Bearer " + (await AsyncStorage.getItem("token")) }
+  });
+
+  const showAlert = (msg, title = "Aviso") => {
+    if (Platform.OS === "web") window.alert(msg);
+    else Alert.alert(title, msg);
+  };
+
+  const loadData = useCallback(async () => {
     try {
-      setGpsLoading(true);
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        showAlert("Permiso de ubicación denegado.");
-        return;
-      }
-      let location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Highest,
-      });
-      const lat = location.coords.latitude;
-      const lng = location.coords.longitude;
-      setCoords([lng, lat]);
+      const headers = await getAuthHeader();
+      // Load store details
+      const storeRes = await api.get("/stores/merchant/stats", headers);
+      setStore(storeRes.data);
 
-      // Intentar revertir geocodificación mediante Nominatim
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
-        {
-          headers: { "User-Agent": "ResYet-App/1.0" },
-        }
-      );
-      const data = await response.json();
-      if (data && data.address) {
-        const road = data.address.road || "";
-        const houseNumber = data.address.house_number || "";
-        const suburb = data.address.suburb || data.address.neighbourhood || "";
-        const city = data.address.city || data.address.town || "";
-        
-        let addressStr = "";
-        if (road) {
-          addressStr += road;
-          if (houseNumber) addressStr += ` ${houseNumber}`;
-        }
-        if (suburb) addressStr += `, ${suburb}`;
-        if (city) addressStr += `, ${city}`;
-
-        setStoreDireccion(addressStr || data.display_name);
-      } else {
-        setStoreDireccion(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
-      }
-    } catch (err) {
-      console.error(err);
-      showAlert("No se pudo autocompletar la dirección con el GPS.");
-    } finally {
-      setGpsLoading(false);
-    }
-  };
-
-  const getAuthHeader = async () => {
-    const token = await AsyncStorage.getItem("token");
-    return { headers: { Authorization: `Bearer ${token}` } };
-  };
-
-  // Cargar la tienda del comerciante
-  const loadMyStore = useCallback(async () => {
-    try {
-      const userData = await AsyncStorage.getItem("user");
-      if (!userData) return null;
-      const user = JSON.parse(userData);
-      
-      const res = await api.get("/stores", await getAuthHeader());
-      const stores = res.data;
-      const userId = user._id || user.id;
-      const myStore = stores.find(s => {
-        const storeUserId = typeof s.usuario === "object" && s.usuario !== null ? s.usuario._id : s.usuario;
-        return String(storeUserId) === String(userId);
-      });
-      setMiTienda(myStore || null);
-      return myStore;
+      // Load products
+      const prodRes = await api.get("/products", headers);
+      setProducts(prodRes.data);
     } catch (e) {
-      console.log("Error loading store:", e);
-      return null;
+      console.error(e);
+      showAlert("Error cargando productos. Verifica tu tienda.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
-  const loadProducts = useCallback(async () => {
-    try {
-      setLoading(true);
-      const store = await loadMyStore();
-      if (store) {
-        const res = await api.get(`/products?store=${store._id}`, await getAuthHeader());
-        setProducts(res.data);
-      } else {
-        setProducts([]);
-      }
-    } catch (e) {
-      showAlert("Error al cargar productos: " + (e?.response?.data?.message || e?.message));
-    } finally {
-      setLoading(false);
-    }
-  }, [loadMyStore]);
-
   useEffect(() => {
-    loadProducts();
-  }, [loadProducts]);
+    loadData();
+  }, [loadData]);
 
-  const showAlert = (msg, title = "Aviso") => {
-    if (Platform.OS === "web") {
-      window.alert(msg);
-    } else {
-      Alert.alert(title, msg);
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadData();
+  };
+
+  // Image Picking
+  const pickImage = async (type) => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      showAlert("Se necesita permiso para acceder a la galería.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.6,
+      base64: true
+    });
+
+    if (!result.canceled && result.assets[0].base64) {
+      const dataUri = `data:image/jpeg;base64,${result.assets[0].base64}`;
+      if (type === "add") setImagen(dataUri);
+      else setEditImagen(dataUri);
     }
   };
 
-  const crearTienda = async () => {
-    if (!storeNombre.trim()) {
-      showAlert("El nombre de la tienda es obligatorio");
-      return;
-    }
-    if (!storeDireccion.trim()) {
-      showAlert("La direccion es obligatoria");
+  // Create Product
+  const handleAddProduct = async () => {
+    if (!nombre.trim() || !precio.trim()) {
+      showAlert("Por favor ingresa el nombre y el precio base.");
       return;
     }
     try {
-      const res = await api.post("/stores", {
-        nombre: storeNombre.trim(),
-        direccion: storeDireccion.trim(),
-        horario: {
-          apertura: storeHorarioApertura,
-          cierre: storeHorarioCierre
-        },
-        coords: coords
-      }, await getAuthHeader());
-      setMiTienda(res.data);
-      setShowStoreModal(false);
-      setStoreNombre("");
-      setStoreDireccion("");
-      showAlert("Tienda creada correctamente");
-    } catch (e) {
-      showAlert("Error al crear tienda: " + (e?.response?.data?.message || e?.message));
-    }
-  };
-
-  const crearProducto = async () => {
-    if (!miTienda) {
-      showAlert("Primero debes crear tu tienda");
-      setShowStoreModal(true);
-      return;
-    }
-    if (!nombre.trim()) {
-      showAlert("El nombre es obligatorio");
-      return;
-    }
-    try {
-      await api.post("/products", { 
-        nombre: nombre.trim(), 
+      const headers = await getAuthHeader();
+      await api.post("/products", {
+        nombre: nombre.trim(),
         descripcion: desc.trim(),
-        precioBase: precio ? Number(precio) : 0,
-        categoria: categoria.trim(),
-        tienda: miTienda._id
-      }, await getAuthHeader());
+        precioBase: parseFloat(precio),
+        categoria,
+        imagen
+      }, headers);
+
+      showAlert("Producto añadido con éxito.", "Éxito");
+      setAddModal(false);
+      // Clean inputs
       setNombre("");
       setDesc("");
       setPrecio("");
       setCategoria("Panadería");
-      loadProducts();
-      showAlert("Producto creado correctamente");
+      setImagen("");
+      loadData();
     } catch (e) {
-      showAlert("Error al crear: " + (e?.response?.data?.message || e?.message));
+      showAlert(e?.response?.data?.message || "Error al añadir producto.");
     }
   };
 
-  const confirmDelete = (id) => {
-    if (Platform.OS === "web") {
-      if (window.confirm("¿Estas seguro de eliminar este producto?")) {
-        eliminarProducto(id);
-      }
-    } else {
-      Alert.alert(
-        "Eliminar producto",
-        "¿Estas seguro de eliminar este producto?",
-        [
-          { text: "Cancelar", style: "cancel" },
-          { text: "Eliminar", style: "destructive", onPress: () => eliminarProducto(id) },
-        ]
-      );
-    }
-  };
-
-  const eliminarProducto = async (id) => {
-    try {
-      await api.delete(`/products/${id}`, await getAuthHeader());
-      loadProducts();
-      showAlert("Producto eliminado");
-    } catch (e) {
-      showAlert("Error: " + (e?.response?.data?.message || e?.message));
-    }
-  };
-
-  const abrirEditar = (producto) => {
-    setEditId(producto._id);
-    setEditNombre(producto.nombre || "");
-    setEditDesc(producto.descripcion || "");
-    setEditPrecio(producto.precioBase?.toString() || "");
-    setEditCategoria(producto.categoria || "");
+  // Edit Product
+  const abrirEditar = (prod) => {
+    setEditId(prod._id);
+    setEditNombre(prod.nombre || "");
+    setEditDesc(prod.descripcion || "");
+    setEditPrecio(prod.precioBase?.toString() || "");
+    setEditCategoria(prod.categoria || "Panadería");
+    setEditImagen(prod.imagen || "");
     setEditModal(true);
   };
 
-  const actualizarProducto = async () => {
-    if (!editNombre.trim()) {
-      showAlert("El nombre es obligatorio");
+  const handleEditProduct = async () => {
+    if (!editNombre.trim() || !editPrecio.trim()) {
+      showAlert("El nombre y precio son obligatorios.");
       return;
     }
     try {
-      await api.put(
-        `/products/${editId}`,
-        { 
-          nombre: editNombre.trim(), 
-          descripcion: editDesc.trim(),
-          precioBase: editPrecio ? Number(editPrecio) : 0,
-          categoria: editCategoria.trim()
-        },
-        await getAuthHeader()
-      );
+      const headers = await getAuthHeader();
+      await api.put(`/products/${editId}`, {
+        nombre: editNombre.trim(),
+        descripcion: editDesc.trim(),
+        precioBase: parseFloat(editPrecio),
+        categoria: editCategoria,
+        imagen: editImagen
+      }, headers);
+
+      showAlert("Producto actualizado con éxito.", "Éxito");
       setEditModal(false);
-      setEditId(null);
-      setEditNombre("");
-      setEditDesc("");
-      setEditPrecio("");
-      setEditCategoria("Panadería");
-      loadProducts();
-      showAlert("Producto actualizado");
+      loadData();
     } catch (e) {
-      showAlert("Error: " + (e?.response?.data?.message || e?.message));
+      showAlert(e?.response?.data?.message || "Error al actualizar producto.");
     }
   };
 
-  if (loading && products.length === 0) {
+  // Delete Product
+  const confirmDelete = (id) => {
+    if (Platform.OS === "web") {
+      if (window.confirm("¿Seguro que deseas eliminar este producto?")) {
+        handleDeleteProduct(id);
+      }
+    } else {
+      Alert.alert("Eliminar Producto", "¿Seguro que deseas eliminar este producto?", [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Eliminar", style: "destructive", onPress: () => handleDeleteProduct(id) }
+      ]);
+    }
+  };
+
+  const handleDeleteProduct = async (id) => {
+    try {
+      await api.delete(`/products/${id}`, await getAuthHeader());
+      showAlert("Producto eliminado.");
+      loadData();
+    } catch (e) {
+      showAlert(e?.response?.data?.message || "Error al eliminar producto.");
+    }
+  };
+
+  // Quick Flash Offer Creation
+  const abrirFlash = (prod) => {
+    setSelectedProduct(prod);
+    setFlashTitle(`Oferta: ${prod.nombre}`);
+    setFlashDesc(prod.descripcion || "¡Oferta especial disponible hoy!");
+    setFlashDiscount("50");
+    setFlashQty("5");
+    // Format expiration tomorrow at 18:00
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const dateStr = tomorrow.toISOString().slice(0, 10);
+    setFlashExpiry(`${dateStr} 18:00`);
+    setFlashModal(true);
+  };
+
+  const handleCreateFlashOffer = async () => {
+    if (!flashTitle.trim() || !flashDiscount.trim() || !flashExpiry.trim() || !flashQty.trim()) {
+      showAlert("Por favor completa todos los campos requeridos.");
+      return;
+    }
+    setCreatingFlash(true);
+    try {
+      const headers = await getAuthHeader();
+      await api.post("/offers", {
+        producto: selectedProduct._id,
+        titulo: flashTitle.trim(),
+        descripcion: flashDesc.trim(),
+        descuento: parseFloat(flashDiscount),
+        cantidadLimitada: parseInt(flashQty),
+        fechaVencimiento: new Date(flashExpiry.replace(" ", "T")),
+        activa: true
+      }, headers);
+
+      showAlert("¡Oferta Relámpago creada con éxito!", "Éxito");
+      setFlashModal(false);
+    } catch (e) {
+      showAlert("Error al crear oferta: " + (e?.response?.data?.message || e?.message));
+    } finally {
+      setCreatingFlash(false);
+    }
+  };
+
+  if (loading) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: colors.bg }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={[styles.loadingText, { color: colors.subtext }]}>Cargando productos...</Text>
+      <View style={[styles.centerContainer, { backgroundColor: colors.bg }]}>
+        <ActivityIndicator size="large" color={colors.orangeHeader} />
+        <Text style={[styles.loadingText, { color: colors.subtext }]}>Cargando inventario...</Text>
       </View>
     );
   }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
-      <Text style={[styles.title, { color: colors.primary }]}>Mis Productos</Text>
       
-      {/* Modal para crear tienda */}
-      <Modal
-        visible={showStoreModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowStoreModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Crear Mi Tienda</Text>
-            <Text style={[styles.modalSubtitle, { color: colors.subtext }]}>Para agregar productos, primero debes crear tu tienda</Text>
-            <TextInput
-              placeholder="Nombre de la tienda *"
-              placeholderTextColor={colors.placeholder}
-              value={storeNombre}
-              onChangeText={setStoreNombre}
-              style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-            />
-            <View style={styles.addressContainer}>
-              <TextInput
-                placeholder="Dirección *"
-                placeholderTextColor={colors.placeholder}
-                value={storeDireccion}
-                 onChangeText={(text) => {
-                   setStoreDireccion(text);
-                   setCoords(null);
-                 }}
-                style={[styles.addressInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-              />
-              <TouchableOpacity
-                style={[styles.gpsButton, gpsLoading && styles.buttonDisabled]}
-                onPress={usarGpsUbicacion}
-                disabled={gpsLoading}
-              >
-                {gpsLoading ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Ionicons name="locate" size={20} color="#fff" />
-                )}
-              </TouchableOpacity>
-            </View>
-            <View style={styles.row}>
-              <TextInput
-                placeholder="Apertura"
-                placeholderTextColor={colors.placeholder}
-                value={storeHorarioApertura}
-                onChangeText={setStoreHorarioApertura}
-                style={[styles.input, styles.halfInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-              />
-              <TextInput
-                placeholder="Cierre"
-                placeholderTextColor={colors.placeholder}
-                value={storeHorarioCierre}
-                onChangeText={setStoreHorarioCierre}
-                style={[styles.input, styles.halfInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-              />
-            </View>
-            <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.saveButton} onPress={crearTienda}>
-                <Text style={styles.saveButtonText}>Crear Tienda</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.cancelButton} onPress={() => setShowStoreModal(false)}>
-                <Text style={[styles.cancelButtonText, { color: isDark ? colors.text : "#333" }]}>Cancelar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      {/* ORANGE HEADER (INVENTARIO) */}
+      <View style={[styles.header, { backgroundColor: colors.orangeHeader }]}>
+        <Text style={styles.headerTitle}>Inventario</Text>
+        <Text style={styles.headerSubtitle}>Gestiona tus productos excedentes</Text>
+      </View>
 
-      {/* Mensaje si no tiene tienda */}
-      {!miTienda && !loading && (
-        <View style={styles.noStoreContainer}>
-          <Text style={styles.noStoreText}>No tienes una tienda registrada</Text>
-          <Text style={styles.noStoreSubtext}>Crea tu tienda para poder agregar productos</Text>
-          <TouchableOpacity style={styles.createStoreButton} onPress={() => setShowStoreModal(true)}>
-            <Text style={styles.createStoreButtonText}>Crear Mi Tienda</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      {/* CENTERED GREEN ADD PRODUCT BUTTON */}
+      <View style={styles.actionContainer}>
+        <TouchableOpacity 
+          style={[styles.addButton, { backgroundColor: colors.greenButton }]}
+          onPress={() => setAddModal(true)}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="add" size={18} color="#fff" style={{ marginRight: 4 }} />
+          <Text style={styles.addButtonText}>Añadir Nuevo Producto</Text>
+        </TouchableOpacity>
+      </View>
 
-      {/* Info de la tienda */}
-      {miTienda && (
-        <View style={[styles.storeInfoContainer, { backgroundColor: colors.storeInfoBg, borderLeftColor: colors.primary }]}>
-          <Text style={[styles.storeInfoText, { color: colors.primary }]}>Tienda: {miTienda.nombre}</Text>
-          <Text style={[styles.storeInfoSubtext, { color: isDark ? "#81C784" : "#558B2F" }]}>{miTienda.direccion}</Text>
-        </View>
-      )}
-      
-      {/* Formulario de creacion */}
-      {miTienda && (
-        <View style={[styles.formContainer, { backgroundColor: colors.card }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Crear nuevo producto</Text>
-          <TextInput
-            placeholder="Nombre del producto *"
-            placeholderTextColor={colors.placeholder}
-            value={nombre}
-            onChangeText={setNombre}
-            style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-          />
-          
-          <TextInput
-            placeholder="Descripción del producto"
-            placeholderTextColor={colors.placeholder}
-            value={desc}
-            onChangeText={setDesc}
-            style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-            multiline
-          />
-          
-          <View style={styles.row}>
-            <TextInput
-              placeholder="Precio base"
-              placeholderTextColor={colors.placeholder}
-              value={precio}
-              onChangeText={(v) => setPrecio(v.replace(/[^0-9.]/g, ""))}
-              style={[styles.input, styles.halfInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-              keyboardType="numeric"
-            />
-            
-            <TouchableOpacity
-              style={[styles.selectButton, styles.halfInput, { backgroundColor: colors.inputBg, borderColor: colors.border }]}
-              onPress={() => setShowCategoryModal(true)}
-            >
-              <Text style={[styles.selectButtonText, { color: colors.text }]}>{categoria}</Text>
-              <Ionicons name="chevron-down" size={20} color={colors.subtext} />
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity style={styles.createButton} onPress={crearProducto}>
-            <Text style={styles.createButtonText}>Crear Producto</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Modal de edicion */}
-      <Modal
-        visible={editModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setEditModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Editar Producto</Text>
-            <TextInput
-              placeholder="Nombre del producto *"
-              placeholderTextColor={colors.placeholder}
-              value={editNombre}
-              onChangeText={setEditNombre}
-              style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-            />
-            <TextInput
-              placeholder="Descripcion"
-              placeholderTextColor={colors.placeholder}
-              value={editDesc}
-              onChangeText={setEditDesc}
-              style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-              multiline
-            />
-            <TextInput
-              placeholder="Precio base"
-              placeholderTextColor={colors.placeholder}
-              value={editPrecio}
-              onChangeText={(v) => setEditPrecio(v.replace(/[^0-9.]/g, ""))}
-              style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-              keyboardType="numeric"
-            />
-            
-            <Text style={[styles.label, { color: colors.label, marginBottom: 8 }]}>Categoría:</Text>
-            <TouchableOpacity
-              style={[styles.selectButton, { backgroundColor: colors.inputBg, borderColor: colors.border, marginBottom: 16 }]}
-              onPress={() => setShowEditCategoryModal(true)}
-            >
-              <Text style={[styles.selectButtonText, { color: colors.text }]}>{editCategoria}</Text>
-              <Ionicons name="chevron-down" size={20} color={colors.subtext} />
-            </TouchableOpacity>
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.saveButton} onPress={actualizarProducto}>
-                <Text style={styles.saveButtonText}>Guardar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.cancelButton} onPress={() => setEditModal(false)}>
-                <Text style={[styles.cancelButtonText, { color: isDark ? colors.text : "#333" }]}>Cancelar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Lista de productos */}
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>Listado de productos ({products.length})</Text>
+      {/* PRODUCTS LIST */}
       {products.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={[styles.emptyText, { color: colors.subtext }]}>No tienes productos registrados</Text>
-          <Text style={[styles.emptySubtext, { color: colors.placeholder }]}>Crea tu primer producto usando el formulario de arriba</Text>
+          <Ionicons name="cube-outline" size={48} color={colors.placeholder} />
+          <Text style={[styles.emptyText, { color: colors.subtext }]}>No tienes productos añadidos</Text>
+          <Text style={[styles.emptySubtext, { color: colors.placeholder }]}>Toca el botón superior para empezar a registrar.</Text>
         </View>
       ) : (
         <FlatList
           data={products}
-          keyExtractor={item => item._id?.toString() || item.id?.toString()}
+          keyExtractor={(item) => item._id}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.orangeHeader]} />
+          }
           renderItem={({ item }) => (
-            <View style={[styles.productCard, { backgroundColor: colors.card }]}>
-              <View style={styles.productInfo}>
-                <Text style={[styles.productName, { color: colors.text }]}>{item.nombre}</Text>
-                {item.descripcion && <Text style={[styles.productDesc, { color: colors.subtext }]}>{item.descripcion}</Text>}
-                <View style={styles.productDetails}>
-                  {item.precioBase > 0 && (
-                    <Text style={styles.productPrice}>${item.precioBase.toFixed(2)}</Text>
-                  )}
-                  {item.categoria && (
-                    <Text style={[
-                      styles.productCategory, 
-                      { 
-                        backgroundColor: isDark ? "#2c2c2c" : "#f0f0f0", 
-                        color: isDark ? "#81C784" : "#2E7D32" 
-                      }
-                    ]}>
-                      {item.categoria}
+            <View style={[styles.productCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={styles.cardMain}>
+                {/* Product Image */}
+                {item.imagen ? (
+                  <Image source={{ uri: item.imagen }} style={styles.productImage} />
+                ) : (
+                  <View style={[styles.productImagePlaceholder, { backgroundColor: colors.divider }]}>
+                    <Ionicons name="fast-food-outline" size={24} color={colors.orangeHeader} />
+                  </View>
+                )}
+
+                {/* Info */}
+                <View style={styles.productInfo}>
+                  <View style={styles.titleRow}>
+                    <Text style={[styles.productName, { color: colors.text }]} numberOfLines={1}>
+                      {item.nombre}
+                    </Text>
+                    <View style={[styles.badge, { backgroundColor: colors.orangeLight }]}>
+                      <Text style={[styles.badgeText, { color: colors.orangeHeader }]}>Flash</Text>
+                    </View>
+                  </View>
+                  {item.descripcion && (
+                    <Text style={[styles.productDesc, { color: colors.subtext }]} numberOfLines={1}>
+                      {item.descripcion}
                     </Text>
                   )}
+                  <View style={styles.metaRow}>
+                    <Ionicons name="cube-outline" size={13} color={colors.subtext} style={{ marginRight: 3 }} />
+                    <Text style={[styles.metaText, { color: colors.subtext }]}>Cantidad: 8</Text>
+                  </View>
+                  <Text style={styles.productPrice}>${item.precioBase?.toFixed(2)}</Text>
                 </View>
               </View>
-              <View style={styles.productActions}>
-                <TouchableOpacity style={styles.editButton} onPress={() => abrirEditar(item)}>
-                  <Text style={styles.editButtonText}>Editar</Text>
+
+              <View style={[styles.divider, { backgroundColor: colors.divider }]} />
+
+              {/* CARD ACTIONS ROW */}
+              <View style={styles.cardActions}>
+                <TouchableOpacity 
+                  style={[styles.cardBtn, { borderColor: colors.border }]} 
+                  onPress={() => abrirEditar(item)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="create-outline" size={16} color={colors.text} style={{ marginRight: 4 }} />
+                  <Text style={[styles.cardBtnText, { color: colors.text }]}>Editar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.deleteButton} onPress={() => confirmDelete(item._id)}>
-                  <Text style={styles.deleteButtonText}>Eliminar</Text>
+
+                <TouchableOpacity 
+                  style={[styles.cardBtn, { backgroundColor: colors.orange, borderColor: colors.orange }]} 
+                  onPress={() => abrirFlash(item)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="flash" size={16} color="#fff" style={{ marginRight: 4 }} />
+                  <Text style={[styles.cardBtnText, { color: "#fff" }]}>Flash</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={[styles.cardBtn, { borderColor: colors.danger }]} 
+                  onPress={() => confirmDelete(item._id)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="trash-outline" size={16} color={colors.danger} style={{ marginRight: 4 }} />
+                  <Text style={[styles.cardBtnText, { color: colors.danger }]}>Eliminar</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -539,97 +381,258 @@ export default function ProductsScreen() {
         />
       )}
 
-      {/* Modal de selección de categoría para creación */}
-      <Modal
-        visible={showCategoryModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowCategoryModal(false)}
-      >
-        <View style={styles.selectModalOverlay}>
-          <View style={[styles.selectModalContent, { backgroundColor: colors.card }]}>
-            <View style={styles.selectModalHeader}>
-              <Text style={[styles.selectModalTitle, { color: colors.text }]}>Selecciona una Categoría</Text>
-              <TouchableOpacity onPress={() => setShowCategoryModal(false)}>
-                <Ionicons name="close" size={24} color={colors.text} />
+      {/* ADD PRODUCT MODAL */}
+      <Modal visible={addModal} transparent animationType="slide" onRequestClose={() => setAddModal(false)}>
+        <View style={styles.modalOverlay}>
+          <ScrollView contentContainerStyle={styles.modalScroll}>
+            <View style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[styles.modalTitle, { color: colors.orangeHeader }]}>Nuevo Producto</Text>
+
+              {/* Image selector */}
+              <TouchableOpacity style={styles.imagePickerBtn} onPress={() => pickImage("add")}>
+                {imagen ? (
+                  <Image source={{ uri: imagen }} style={styles.imagePreview} />
+                ) : (
+                  <View style={styles.imagePickerPlaceholder}>
+                    <Ionicons name="camera-outline" size={32} color={colors.subtext} />
+                    <Text style={{ color: colors.subtext, fontSize: 13, marginTop: 4 }}>Seleccionar Imagen</Text>
+                  </View>
+                )}
               </TouchableOpacity>
-            </View>
-            
-            <FlatList
-              data={CATEGORIAS}
-              keyExtractor={item => item}
-              style={styles.selectProductList}
-              contentContainerStyle={styles.selectProductListContent}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[
-                    styles.selectProductOption,
-                    categoria === item && { backgroundColor: isDark ? "rgba(46, 125, 50, 0.2)" : "#E8F5E9", borderRadius: 8 }
-                  ]}
-                  onPress={() => {
-                    setCategoria(item);
-                    setShowCategoryModal(false);
-                  }}
-                >
-                  <Text style={[
-                    styles.selectProductOptionText,
-                    { color: colors.text },
-                    categoria === item && { color: colors.primary, fontWeight: "bold" }
-                  ]}>
-                    {item}
-                  </Text>
+
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Nombre del Producto *</Text>
+              <TextInput
+                placeholder="Ej: Pan Artesanal"
+                placeholderTextColor={colors.placeholder}
+                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                value={nombre}
+                onChangeText={setNombre}
+              />
+
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Precio Base ($) *</Text>
+              <TextInput
+                placeholder="Ej: 12.50"
+                placeholderTextColor={colors.placeholder}
+                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                value={precio}
+                onChangeText={setPrecio}
+                keyboardType="numeric"
+              />
+
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Categoría</Text>
+              <TouchableOpacity
+                style={[styles.selectBtn, { backgroundColor: colors.inputBg, borderColor: colors.border }]}
+                onPress={() => setShowCategoryModal(true)}
+              >
+                <Text style={{ color: colors.text, fontSize: 15 }}>{categoria}</Text>
+                <Ionicons name="chevron-down" size={16} color={colors.subtext} />
+              </TouchableOpacity>
+
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Descripción (opcional)</Text>
+              <TextInput
+                placeholder="Ingresa la descripción..."
+                placeholderTextColor={colors.placeholder}
+                style={[styles.input, styles.textArea, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                value={desc}
+                onChangeText={setDesc}
+                multiline
+                numberOfLines={3}
+              />
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity style={[styles.confirmButton, { backgroundColor: colors.greenButton }]} onPress={handleAddProduct}>
+                  <Text style={styles.confirmButtonText}>Crear Producto</Text>
                 </TouchableOpacity>
-              )}
-            />
+                <TouchableOpacity style={[styles.cancelButton, { backgroundColor: isDark ? "#333" : "#eee" }]} onPress={() => setAddModal(false)}>
+                  <Text style={[styles.cancelButtonText, { color: isDark ? colors.text : "#333" }]}>Cancelar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* EDIT PRODUCT MODAL */}
+      <Modal visible={editModal} transparent animationType="slide" onRequestClose={() => setEditModal(false)}>
+        <View style={styles.modalOverlay}>
+          <ScrollView contentContainerStyle={styles.modalScroll}>
+            <View style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[styles.modalTitle, { color: colors.orangeHeader }]}>Editar Producto</Text>
+
+              <TouchableOpacity style={styles.imagePickerBtn} onPress={() => pickImage("edit")}>
+                {editImagen ? (
+                  <Image source={{ uri: editImagen }} style={styles.imagePreview} />
+                ) : (
+                  <View style={styles.imagePickerPlaceholder}>
+                    <Ionicons name="camera-outline" size={32} color={colors.subtext} />
+                    <Text style={{ color: colors.subtext, fontSize: 13, marginTop: 4 }}>Seleccionar Imagen</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Nombre del Producto *</Text>
+              <TextInput
+                placeholder="Nombre del producto"
+                placeholderTextColor={colors.placeholder}
+                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                value={editNombre}
+                onChangeText={setEditNombre}
+              />
+
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Precio Base ($) *</Text>
+              <TextInput
+                placeholder="Precio Base"
+                placeholderTextColor={colors.placeholder}
+                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                value={editPrecio}
+                onChangeText={setEditPrecio}
+                keyboardType="numeric"
+              />
+
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Categoría</Text>
+              <TouchableOpacity
+                style={[styles.selectBtn, { backgroundColor: colors.inputBg, borderColor: colors.border }]}
+                onPress={() => setShowEditCategoryModal(true)}
+              >
+                <Text style={{ color: colors.text, fontSize: 15 }}>{editCategoria}</Text>
+                <Ionicons name="chevron-down" size={16} color={colors.subtext} />
+              </TouchableOpacity>
+
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Descripción (opcional)</Text>
+              <TextInput
+                placeholder="Descripción"
+                placeholderTextColor={colors.placeholder}
+                style={[styles.input, styles.textArea, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                value={editDesc}
+                onChangeText={setEditDesc}
+                multiline
+                numberOfLines={3}
+              />
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity style={[styles.confirmButton, { backgroundColor: colors.orangeHeader }]} onPress={handleEditProduct}>
+                  <Text style={styles.confirmButtonText}>Guardar Cambios</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.cancelButton, { backgroundColor: isDark ? "#333" : "#eee" }]} onPress={() => setEditModal(false)}>
+                  <Text style={[styles.cancelButtonText, { color: isDark ? colors.text : "#333" }]}>Cancelar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* QUICK FLASH OFFER CREATION MODAL */}
+      <Modal visible={flashModal} transparent animationType="slide" onRequestClose={() => setFlashModal(false)}>
+        <View style={styles.modalOverlay}>
+          <ScrollView contentContainerStyle={styles.modalScroll}>
+            <View style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[styles.modalTitle, { color: colors.orangeHeader }]}>Crear Oferta Relámpago</Text>
+              <Text style={{ color: colors.subtext, fontSize: 13, marginBottom: 12, textAlign: "center" }}>
+                Producto: {selectedProduct?.nombre}
+              </Text>
+
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Título de la Oferta *</Text>
+              <TextInput
+                placeholder="Título de la oferta"
+                placeholderTextColor={colors.placeholder}
+                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                value={flashTitle}
+                onChangeText={setFlashTitle}
+              />
+
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Porcentaje de Descuento (%) *</Text>
+              <TextInput
+                placeholder="Ej: 50"
+                placeholderTextColor={colors.placeholder}
+                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                value={flashDiscount}
+                onChangeText={setFlashDiscount}
+                keyboardType="numeric"
+              />
+
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Cantidad Disponible *</Text>
+              <TextInput
+                placeholder="Ej: 8"
+                placeholderTextColor={colors.placeholder}
+                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                value={flashQty}
+                onChangeText={setFlashQty}
+                keyboardType="numeric"
+              />
+
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Vencimiento (AAAA-MM-DD HH:mm) *</Text>
+              <TextInput
+                placeholder="Ej: 2026-05-30 18:00"
+                placeholderTextColor={colors.placeholder}
+                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                value={flashExpiry}
+                onChangeText={setFlashExpiry}
+              />
+
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Descripción breve</Text>
+              <TextInput
+                placeholder="Descripción de la oferta"
+                placeholderTextColor={colors.placeholder}
+                style={[styles.input, styles.textArea, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                value={flashDesc}
+                onChangeText={setFlashDesc}
+                multiline
+                numberOfLines={3}
+              />
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity 
+                  style={[styles.confirmButton, { backgroundColor: colors.orange }, creatingFlash && styles.buttonDisabled]} 
+                  onPress={handleCreateFlashOffer}
+                  disabled={creatingFlash}
+                >
+                  {creatingFlash ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.confirmButtonText}>Crear Oferta</Text>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.cancelButton, { backgroundColor: isDark ? "#333" : "#eee" }]} 
+                  onPress={() => setFlashModal(false)}
+                  disabled={creatingFlash}
+                >
+                  <Text style={[styles.cancelButtonText, { color: isDark ? colors.text : "#333" }]}>Cancelar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* SELECT CATEGORIES SUBMODALS */}
+      <Modal visible={showCategoryModal} transparent animationType="fade" onRequestClose={() => setShowCategoryModal(false)}>
+        <View style={styles.subModalOverlay}>
+          <View style={[styles.subModalContent, { backgroundColor: colors.card }]}>
+            <Text style={[styles.subModalTitle, { color: colors.orangeHeader }]}>Seleccionar Categoría</Text>
+            {CATEGORIAS.map(cat => (
+              <TouchableOpacity key={cat} style={styles.categoryItem} onPress={() => { setCategoria(cat); setShowCategoryModal(false); }}>
+                <Text style={{ color: colors.text, fontSize: 16 }}>{cat}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
       </Modal>
 
-      {/* Modal de selección de categoría para edición */}
-      <Modal
-        visible={showEditCategoryModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowEditCategoryModal(false)}
-      >
-        <View style={styles.selectModalOverlay}>
-          <View style={[styles.selectModalContent, { backgroundColor: colors.card }]}>
-            <View style={styles.selectModalHeader}>
-              <Text style={[styles.selectModalTitle, { color: colors.text }]}>Selecciona una Categoría</Text>
-              <TouchableOpacity onPress={() => setShowEditCategoryModal(false)}>
-                <Ionicons name="close" size={24} color={colors.text} />
+      <Modal visible={showEditCategoryModal} transparent animationType="fade" onRequestClose={() => setShowEditCategoryModal(false)}>
+        <View style={styles.subModalOverlay}>
+          <View style={[styles.subModalContent, { backgroundColor: colors.card }]}>
+            <Text style={[styles.subModalTitle, { color: colors.orangeHeader }]}>Seleccionar Categoría</Text>
+            {CATEGORIAS.map(cat => (
+              <TouchableOpacity key={cat} style={styles.categoryItem} onPress={() => { setEditCategoria(cat); setShowEditCategoryModal(false); }}>
+                <Text style={{ color: colors.text, fontSize: 16 }}>{cat}</Text>
               </TouchableOpacity>
-            </View>
-            
-            <FlatList
-              data={CATEGORIAS}
-              keyExtractor={item => item}
-              style={styles.selectProductList}
-              contentContainerStyle={styles.selectProductListContent}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[
-                    styles.selectProductOption,
-                    editCategoria === item && { backgroundColor: isDark ? "rgba(46, 125, 50, 0.2)" : "#E8F5E9", borderRadius: 8 }
-                  ]}
-                  onPress={() => {
-                    setEditCategoria(item);
-                    setShowEditCategoryModal(false);
-                  }}
-                >
-                  <Text style={[
-                    styles.selectProductOptionText,
-                    { color: colors.text },
-                    editCategoria === item && { color: colors.primary, fontWeight: "bold" }
-                  ]}>
-                    {item}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            />
+            ))}
           </View>
         </View>
       </Modal>
+
     </View>
   );
 }
@@ -637,319 +640,290 @@ export default function ProductsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
   },
-  loadingContainer: {
+  centerContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
   },
   loadingText: {
     marginTop: 10,
+    fontSize: 15,
   },
-  title: {
+  header: {
+    paddingTop: Platform.OS === "ios" ? 54 : 32,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+  },
+  headerTitle: {
     fontSize: 24,
     fontWeight: "bold",
-    marginBottom: 16,
+    color: "#fff",
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 12,
-    marginTop: 8,
+  headerSubtitle: {
+    fontSize: 14,
+    color: "rgba(255, 255, 255, 0.85)",
+    marginTop: 4,
+    fontWeight: "500",
   },
-  formContainer: {
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
+  actionContainer: {
+    alignItems: "center",
+    marginVertical: 16,
+  },
+  addButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    elevation: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
   },
-  input: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-    fontSize: 16,
-  },
-  row: {
-    flexDirection: "row",
-    gap: 12,
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  halfInput: {
-    flex: 1,
-    marginVertical: 0,
-  },
-  createButton: {
-    backgroundColor: "#2E7D32",
-    padding: 14,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  createButtonText: {
+  addButtonText: {
     color: "#fff",
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  productCard: {
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  productInfo: {
-    flex: 1,
-  },
-  productName: {
-    fontSize: 18,
     fontWeight: "bold",
-  },
-  productDesc: {
     fontSize: 14,
-    marginTop: 4,
-  },
-  productDetails: {
-    flexDirection: "row",
-    marginTop: 8,
-    gap: 12,
-  },
-  productPrice: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#2E7D32",
-  },
-  productCategory: {
-    fontSize: 14,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  productActions: {
-    flexDirection: "column",
-    gap: 8,
-  },
-  editButton: {
-    backgroundColor: "#1976D2",
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-    alignItems: "center",
-  },
-  editButtonText: {
-    color: "#fff",
-    fontWeight: "500",
-  },
-  deleteButton: {
-    backgroundColor: "#D32F2F",
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-    alignItems: "center",
-  },
-  deleteButtonText: {
-    color: "#fff",
-    fontWeight: "500",
   },
   emptyContainer: {
-    padding: 32,
+    flex: 1,
+    justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: 40,
+    paddingBottom: 40,
   },
   emptyText: {
     fontSize: 16,
+    fontWeight: "bold",
+    marginTop: 12,
     textAlign: "center",
   },
   emptySubtext: {
-    fontSize: 14,
+    fontSize: 13,
     textAlign: "center",
-    marginTop: 8,
+    marginTop: 6,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
+  listContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    gap: 14,
+  },
+  productCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+  },
+  cardMain: {
+    flexDirection: "row",
+  },
+  productImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+  },
+  productImagePlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
   },
-  modalContent: {
+  productInfo: {
+    flex: 1,
+    marginLeft: 12,
+    justifyContent: "space-between",
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  productName: {
+    fontSize: 16,
+    fontWeight: "bold",
+    maxWidth: "75%",
+  },
+  badge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  badgeText: {
+    fontSize: 9,
+    fontWeight: "bold",
+  },
+  productDesc: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 3,
+  },
+  metaText: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  productPrice: {
+    fontSize: 15,
+    fontWeight: "bold",
+    color: "#2E7D32",
+    marginTop: 4,
+  },
+  divider: {
+    height: 1,
+    width: "100%",
+    marginVertical: 12,
+  },
+  cardActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  cardBtn: {
+    flex: 1,
+    flexDirection: "row",
+    borderWidth: 1.5,
+    borderRadius: 10,
+    paddingVertical: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cardBtnText: {
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+  },
+  modalScroll: {
     padding: 24,
-    borderRadius: 16,
-    width: "90%",
-    maxWidth: 400,
+    justifyContent: "center",
+    flexGrow: 1,
+  },
+  modalContent: {
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 1,
+    elevation: 5,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: "bold",
     marginBottom: 16,
+    textAlign: "center",
+  },
+  imagePickerBtn: {
+    width: "100%",
+    height: 140,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+    borderStyle: "dashed",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+    overflow: "hidden",
+  },
+  imagePickerPlaceholder: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  imagePreview: {
+    width: "100%",
+    height: "100%",
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 15,
+    height: 48,
+    marginBottom: 14,
+  },
+  selectBtn: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+    height: 48,
+    marginBottom: 14,
+  },
+  textArea: {
+    height: 70,
+    textAlignVertical: "top",
   },
   modalButtons: {
     flexDirection: "row",
     gap: 12,
-    marginTop: 16,
+    marginTop: 10,
   },
-  saveButton: {
+  confirmButton: {
     flex: 1,
-    backgroundColor: "#2E7D32",
     padding: 14,
-    borderRadius: 8,
+    borderRadius: 12,
     alignItems: "center",
+    justifyContent: "center",
   },
-  saveButtonText: {
+  confirmButtonText: {
     color: "#fff",
-    fontWeight: "600",
+    fontWeight: "bold",
+    fontSize: 15,
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: "#ddd",
     padding: 14,
-    borderRadius: 8,
+    borderRadius: 12,
     alignItems: "center",
+    justifyContent: "center",
   },
   cancelButtonText: {
-    fontWeight: "600",
-  },
-  noStoreContainer: {
-    backgroundColor: "#FFF3E0",
-    padding: 24,
-    borderRadius: 12,
-    marginBottom: 16,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#FFB74D",
-  },
-  noStoreText: {
-    fontSize: 18,
     fontWeight: "bold",
-    color: "#E65100",
-    marginBottom: 8,
+    fontSize: 15,
   },
-  noStoreSubtext: {
-    fontSize: 14,
-    color: "#F57C00",
-    textAlign: "center",
-    marginBottom: 16,
-  },
-  createStoreButton: {
-    backgroundColor: "#E65100",
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-  },
-  createStoreButtonText: {
-    color: "#fff",
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  storeInfoContainer: {
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    borderLeftWidth: 4,
-  },
-  storeInfoText: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  storeInfoSubtext: {
-    fontSize: 14,
-    marginTop: 4,
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    marginBottom: 16,
-  },
-  addressContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  addressInput: {
+  subModalOverlay: {
     flex: 1,
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-  },
-  gpsButton: {
-    backgroundColor: "#1976D2",
-    width: 48,
-    height: 48,
-    borderRadius: 8,
-    marginLeft: 8,
+    backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "center",
     alignItems: "center",
+  },
+  subModalContent: {
+    width: "80%",
+    borderRadius: 16,
+    padding: 20,
+    elevation: 6,
+  },
+  subModalTitle: {
+    fontSize: 17,
+    fontWeight: "bold",
+    marginBottom: 14,
+    textAlign: "center",
+  },
+  categoryItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f3f5",
   },
   buttonDisabled: {
     opacity: 0.6,
   },
-  selectButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    backgroundColor: "#fafafa",
-  },
-  selectButtonText: {
-    fontSize: 16,
-  },
-  selectModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  selectModalContent: {
-    padding: 24,
-    borderRadius: 16,
-    width: "85%",
-    maxWidth: 360,
-    maxHeight: "70%",
-    minHeight: 180,
-    display: "flex",
-    flexDirection: "column",
-  },
-  selectModalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-    paddingBottom: 10,
-  },
-  selectModalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  selectProductOption: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f9f9f9",
-  },
-  selectProductOptionText: {
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  selectProductList: {
-    flexGrow: 1,
-    width: "100%",
-  },
-  selectProductListContent: {
-    flexGrow: 1,
-  },
-  label: {
-    fontSize: 14,
-  }
 });

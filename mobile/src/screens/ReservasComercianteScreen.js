@@ -6,6 +6,7 @@ import { api } from "../services/api";
 const ESTADO_COLORS = {
   pendiente: { bg: "#FFF3E0", text: "#E65100", label: "Pendiente" },
   aceptada: { bg: "#E8F5E9", text: "#2E7D32", label: "Aceptada" },
+  completada: { bg: "#E3F2FD", text: "#1976D2", label: "Completada" },
   rechazada: { bg: "#FFEBEE", text: "#C62828", label: "Rechazada" },
   cancelada: { bg: "#ECEFF1", text: "#546E7A", label: "Cancelada" },
 };
@@ -221,6 +222,20 @@ export default function ReservasComercianteScreen() {
                         disabled={procesando === item._id}
                       >
                         <Text style={styles.rejectButtonText}>Rechazar</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  {item.estado === "aceptada" && (
+                    <View style={styles.actionButtons}>
+                      <TouchableOpacity 
+                        style={[styles.acceptButton, { backgroundColor: "#FF9800" }, procesando === item._id && styles.buttonDisabled]} 
+                        onPress={() => cambiarEstado(item._id, "completada")}
+                        disabled={procesando === item._id}
+                      >
+                        <Text style={styles.acceptButtonText}>
+                          {procesando === item._id ? "Procesando..." : "Entregar Alimento (Completar)"}
+                        </Text>
                       </TouchableOpacity>
                     </View>
                   )}
