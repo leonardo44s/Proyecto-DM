@@ -317,6 +317,7 @@ export default function OfertasClienteScreen({ navigation }) {
         <FlatList
           data={filteredOffers}
           keyExtractor={(item) => item._id}
+          style={styles.flatList}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -547,8 +548,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
-  mapContainer: {
+  flatList: {
     flex: 1,
+  },
+  mapContainer: {
+    height: 220,
     marginHorizontal: 20,
     borderRadius: 20,
     overflow: "hidden",

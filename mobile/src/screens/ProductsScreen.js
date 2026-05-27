@@ -13,7 +13,8 @@ import {
   useColorScheme,
   Image,
   ScrollView,
-  RefreshControl
+  RefreshControl,
+  KeyboardAvoidingView
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -33,6 +34,7 @@ export default function ProductsScreen() {
   const [nombre, setNombre] = useState("");
   const [desc, setDesc] = useState("");
   const [precio, setPrecio] = useState("");
+  const [cantidad, setCantidad] = useState("10");
   const [categoria, setCategoria] = useState("Panadería");
   const [imagen, setImagen] = useState("");
 
@@ -42,6 +44,7 @@ export default function ProductsScreen() {
   const [editNombre, setEditNombre] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [editPrecio, setEditPrecio] = useState("");
+  const [editCantidad, setEditCantidad] = useState("10");
   const [editCategoria, setEditCategoria] = useState("Panadería");
   const [editImagen, setEditImagen] = useState("");
 
@@ -54,10 +57,8 @@ export default function ProductsScreen() {
   const [flashQty, setFlashQty] = useState("5");
   const [flashExpiry, setFlashExpiry] = useState("");
   const [creatingFlash, setCreatingFlash] = useState(false);
-
-  // Category selectors
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [showEditCategoryModal, setShowEditCategoryModal] = useState(false);
+  const [guardandoProducto, setGuardandoProducto] = useState(false);
+  const [editandoProducto, setEditandoProducto] = useState(false);
 
   const isDark = useColorScheme() === "dark";
   const colors = {
@@ -120,7 +121,7 @@ export default function ProductsScreen() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: "images",
       allowsEditing: true,
       aspect: [4, 3],
       quality: 0.6,
@@ -140,12 +141,14 @@ export default function ProductsScreen() {
       showAlert("Por favor ingresa el nombre y el precio base.");
       return;
     }
+    setGuardandoProducto(true);
     try {
       const headers = await getAuthHeader();
       await api.post("/products", {
         nombre: nombre.trim(),
         descripcion: desc.trim(),
         precioBase: parseFloat(precio),
+        cantidad: parseInt(cantidad) || 0,
         categoria,
         imagen
       }, headers);
@@ -156,11 +159,14 @@ export default function ProductsScreen() {
       setNombre("");
       setDesc("");
       setPrecio("");
+      setCantidad("10");
       setCategoria("Panadería");
       setImagen("");
       loadData();
     } catch (e) {
       showAlert(e?.response?.data?.message || "Error al añadir producto.");
+    } finally {
+      setGuardandoProducto(false);
     }
   };
 
@@ -171,6 +177,7 @@ export default function ProductsScreen() {
     setEditDesc(prod.descripcion || "");
     setEditPrecio(prod.precioBase?.toString() || "");
     setEditCategoria(prod.categoria || "Panadería");
+    setEditCantidad(prod.cantidad?.toString() || "0");
     setEditImagen(prod.imagen || "");
     setEditModal(true);
   };
@@ -180,12 +187,14 @@ export default function ProductsScreen() {
       showAlert("El nombre y precio son obligatorios.");
       return;
     }
+    setEditandoProducto(true);
     try {
       const headers = await getAuthHeader();
       await api.put(`/products/${editId}`, {
         nombre: editNombre.trim(),
         descripcion: editDesc.trim(),
         precioBase: parseFloat(editPrecio),
+        cantidad: parseInt(editCantidad) || 0,
         categoria: editCategoria,
         imagen: editImagen
       }, headers);
@@ -195,6 +204,8 @@ export default function ProductsScreen() {
       loadData();
     } catch (e) {
       showAlert(e?.response?.data?.message || "Error al actualizar producto.");
+    } finally {
+      setEditandoProducto(false);
     }
   };
 
@@ -339,7 +350,7 @@ export default function ProductsScreen() {
                   )}
                   <View style={styles.metaRow}>
                     <Ionicons name="cube-outline" size={13} color={colors.subtext} style={{ marginRight: 3 }} />
-                    <Text style={[styles.metaText, { color: colors.subtext }]}>Cantidad: 8</Text>
+                    <Text style={[styles.metaText, { color: colors.subtext }]}>Cantidad: {item.cantidad ?? 0}</Text>
                   </View>
                   <Text style={styles.productPrice}>${item.precioBase?.toFixed(2)}</Text>
                 </View>
@@ -383,254 +394,314 @@ export default function ProductsScreen() {
 
       {/* ADD PRODUCT MODAL */}
       <Modal visible={addModal} transparent animationType="slide" onRequestClose={() => setAddModal(false)}>
-        <View style={styles.modalOverlay}>
-          <ScrollView contentContainerStyle={styles.modalScroll}>
-            <View style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Text style={[styles.modalTitle, { color: colors.orangeHeader }]}>Nuevo Producto</Text>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
+            <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
+              <View style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[styles.modalTitle, { color: colors.orangeHeader }]}>Nuevo Producto</Text>
 
-              {/* Image selector */}
-              <TouchableOpacity style={styles.imagePickerBtn} onPress={() => pickImage("add")}>
-                {imagen ? (
-                  <Image source={{ uri: imagen }} style={styles.imagePreview} />
-                ) : (
-                  <View style={styles.imagePickerPlaceholder}>
-                    <Ionicons name="camera-outline" size={32} color={colors.subtext} />
-                    <Text style={{ color: colors.subtext, fontSize: 13, marginTop: 4 }}>Seleccionar Imagen</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-
-              <Text style={[styles.inputLabel, { color: colors.text }]}>Nombre del Producto *</Text>
-              <TextInput
-                placeholder="Ej: Pan Artesanal"
-                placeholderTextColor={colors.placeholder}
-                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-                value={nombre}
-                onChangeText={setNombre}
-              />
-
-              <Text style={[styles.inputLabel, { color: colors.text }]}>Precio Base ($) *</Text>
-              <TextInput
-                placeholder="Ej: 12.50"
-                placeholderTextColor={colors.placeholder}
-                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-                value={precio}
-                onChangeText={setPrecio}
-                keyboardType="numeric"
-              />
-
-              <Text style={[styles.inputLabel, { color: colors.text }]}>Categoría</Text>
-              <TouchableOpacity
-                style={[styles.selectBtn, { backgroundColor: colors.inputBg, borderColor: colors.border }]}
-                onPress={() => setShowCategoryModal(true)}
-              >
-                <Text style={{ color: colors.text, fontSize: 15 }}>{categoria}</Text>
-                <Ionicons name="chevron-down" size={16} color={colors.subtext} />
-              </TouchableOpacity>
-
-              <Text style={[styles.inputLabel, { color: colors.text }]}>Descripción (opcional)</Text>
-              <TextInput
-                placeholder="Ingresa la descripción..."
-                placeholderTextColor={colors.placeholder}
-                style={[styles.input, styles.textArea, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-                value={desc}
-                onChangeText={setDesc}
-                multiline
-                numberOfLines={3}
-              />
-
-              <View style={styles.modalButtons}>
-                <TouchableOpacity style={[styles.confirmButton, { backgroundColor: colors.greenButton }]} onPress={handleAddProduct}>
-                  <Text style={styles.confirmButtonText}>Crear Producto</Text>
+                {/* Image selector */}
+                <TouchableOpacity style={styles.imagePickerBtn} onPress={() => pickImage("add")}>
+                  {imagen ? (
+                    <Image source={{ uri: imagen }} style={styles.imagePreview} />
+                  ) : (
+                    <View style={styles.imagePickerPlaceholder}>
+                      <Ionicons name="camera-outline" size={32} color={colors.subtext} />
+                      <Text style={{ color: colors.subtext, fontSize: 13, marginTop: 4 }}>Seleccionar Imagen</Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.cancelButton, { backgroundColor: isDark ? "#333" : "#eee" }]} onPress={() => setAddModal(false)}>
-                  <Text style={[styles.cancelButtonText, { color: isDark ? colors.text : "#333" }]}>Cancelar</Text>
-                </TouchableOpacity>
+
+                <Text style={[styles.inputLabel, { color: colors.text }]}>Nombre del Producto *</Text>
+                <TextInput
+                  placeholder="Ej: Pan Artesanal"
+                  placeholderTextColor={colors.placeholder}
+                  style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                  value={nombre}
+                  onChangeText={setNombre}
+                />
+
+                <Text style={[styles.inputLabel, { color: colors.text }]}>Precio Base ($) *</Text>
+                <TextInput
+                  placeholder="Ej: 12.50"
+                  placeholderTextColor={colors.placeholder}
+                  style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                  value={precio}
+                  onChangeText={setPrecio}
+                  keyboardType="numeric"
+                />
+
+                <Text style={[styles.inputLabel, { color: colors.text }]}>Cantidad Disponible *</Text>
+                <TextInput
+                  placeholder="Ej: 10"
+                  placeholderTextColor={colors.placeholder}
+                  style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                  value={cantidad}
+                  onChangeText={setCantidad}
+                  keyboardType="numeric"
+                />
+
+                <Text style={[styles.inputLabel, { color: colors.text }]}>Categoría *</Text>
+                <View style={styles.categoryChipsContainer}>
+                  {CATEGORIAS.map((cat) => {
+                    const isSelected = categoria === cat;
+                    return (
+                      <TouchableOpacity
+                        key={cat}
+                        style={[
+                          styles.modalCategoryChip,
+                          { borderColor: colors.border, backgroundColor: colors.inputBg },
+                          isSelected && { backgroundColor: colors.orangeHeader, borderColor: colors.orangeHeader }
+                        ]}
+                        onPress={() => setCategoria(cat)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.modalCategoryChipText, { color: colors.text }, isSelected && { color: "#fff", fontWeight: "bold" }]}>
+                          {cat}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <Text style={[styles.inputLabel, { color: colors.text }]}>Descripción (opcional)</Text>
+                <TextInput
+                  placeholder="Ingresa la descripción..."
+                  placeholderTextColor={colors.placeholder}
+                  style={[styles.input, styles.textArea, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                  value={desc}
+                  onChangeText={setDesc}
+                  multiline
+                  numberOfLines={3}
+                />
+
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity 
+                    style={[styles.confirmButton, { backgroundColor: colors.greenButton }, guardandoProducto && styles.buttonDisabled]} 
+                    onPress={handleAddProduct}
+                    disabled={guardandoProducto}
+                  >
+                    {guardandoProducto ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.confirmButtonText}>Crear Producto</Text>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.cancelButton, { backgroundColor: isDark ? "#333" : "#eee" }]} 
+                    onPress={() => setAddModal(false)}
+                    disabled={guardandoProducto}
+                  >
+                    <Text style={[styles.cancelButtonText, { color: isDark ? colors.text : "#333" }]}>Cancelar</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          </ScrollView>
-        </View>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* EDIT PRODUCT MODAL */}
       <Modal visible={editModal} transparent animationType="slide" onRequestClose={() => setEditModal(false)}>
-        <View style={styles.modalOverlay}>
-          <ScrollView contentContainerStyle={styles.modalScroll}>
-            <View style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Text style={[styles.modalTitle, { color: colors.orangeHeader }]}>Editar Producto</Text>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
+            <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
+              <View style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[styles.modalTitle, { color: colors.orangeHeader }]}>Editar Producto</Text>
 
-              <TouchableOpacity style={styles.imagePickerBtn} onPress={() => pickImage("edit")}>
-                {editImagen ? (
-                  <Image source={{ uri: editImagen }} style={styles.imagePreview} />
-                ) : (
-                  <View style={styles.imagePickerPlaceholder}>
-                    <Ionicons name="camera-outline" size={32} color={colors.subtext} />
-                    <Text style={{ color: colors.subtext, fontSize: 13, marginTop: 4 }}>Seleccionar Imagen</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-
-              <Text style={[styles.inputLabel, { color: colors.text }]}>Nombre del Producto *</Text>
-              <TextInput
-                placeholder="Nombre del producto"
-                placeholderTextColor={colors.placeholder}
-                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-                value={editNombre}
-                onChangeText={setEditNombre}
-              />
-
-              <Text style={[styles.inputLabel, { color: colors.text }]}>Precio Base ($) *</Text>
-              <TextInput
-                placeholder="Precio Base"
-                placeholderTextColor={colors.placeholder}
-                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-                value={editPrecio}
-                onChangeText={setEditPrecio}
-                keyboardType="numeric"
-              />
-
-              <Text style={[styles.inputLabel, { color: colors.text }]}>Categoría</Text>
-              <TouchableOpacity
-                style={[styles.selectBtn, { backgroundColor: colors.inputBg, borderColor: colors.border }]}
-                onPress={() => setShowEditCategoryModal(true)}
-              >
-                <Text style={{ color: colors.text, fontSize: 15 }}>{editCategoria}</Text>
-                <Ionicons name="chevron-down" size={16} color={colors.subtext} />
-              </TouchableOpacity>
-
-              <Text style={[styles.inputLabel, { color: colors.text }]}>Descripción (opcional)</Text>
-              <TextInput
-                placeholder="Descripción"
-                placeholderTextColor={colors.placeholder}
-                style={[styles.input, styles.textArea, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-                value={editDesc}
-                onChangeText={setEditDesc}
-                multiline
-                numberOfLines={3}
-              />
-
-              <View style={styles.modalButtons}>
-                <TouchableOpacity style={[styles.confirmButton, { backgroundColor: colors.orangeHeader }]} onPress={handleEditProduct}>
-                  <Text style={styles.confirmButtonText}>Guardar Cambios</Text>
+                <TouchableOpacity style={styles.imagePickerBtn} onPress={() => pickImage("edit")}>
+                  {editImagen ? (
+                    <Image source={{ uri: editImagen }} style={styles.imagePreview} />
+                  ) : (
+                    <View style={styles.imagePickerPlaceholder}>
+                      <Ionicons name="camera-outline" size={32} color={colors.subtext} />
+                      <Text style={{ color: colors.subtext, fontSize: 13, marginTop: 4 }}>Seleccionar Imagen</Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.cancelButton, { backgroundColor: isDark ? "#333" : "#eee" }]} onPress={() => setEditModal(false)}>
-                  <Text style={[styles.cancelButtonText, { color: isDark ? colors.text : "#333" }]}>Cancelar</Text>
-                </TouchableOpacity>
+
+                <Text style={[styles.inputLabel, { color: colors.text }]}>Nombre del Producto *</Text>
+                <TextInput
+                  placeholder="Nombre del producto"
+                  placeholderTextColor={colors.placeholder}
+                  style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                  value={editNombre}
+                  onChangeText={setEditNombre}
+                />
+
+                <Text style={[styles.inputLabel, { color: colors.text }]}>Precio Base ($) *</Text>
+                <TextInput
+                  placeholder="Precio Base"
+                  placeholderTextColor={colors.placeholder}
+                  style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                  value={editPrecio}
+                  onChangeText={setEditPrecio}
+                  keyboardType="numeric"
+                />
+
+                <Text style={[styles.inputLabel, { color: colors.text }]}>Cantidad Disponible *</Text>
+                <TextInput
+                  placeholder="Cantidad"
+                  placeholderTextColor={colors.placeholder}
+                  style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                  value={editCantidad}
+                  onChangeText={setEditCantidad}
+                  keyboardType="numeric"
+                />
+
+                <Text style={[styles.inputLabel, { color: colors.text }]}>Categoría *</Text>
+                <View style={styles.categoryChipsContainer}>
+                  {CATEGORIAS.map((cat) => {
+                    const isSelected = editCategoria === cat;
+                    return (
+                      <TouchableOpacity
+                        key={cat}
+                        style={[
+                          styles.modalCategoryChip,
+                          { borderColor: colors.border, backgroundColor: colors.inputBg },
+                          isSelected && { backgroundColor: colors.orangeHeader, borderColor: colors.orangeHeader }
+                        ]}
+                        onPress={() => setEditCategoria(cat)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.modalCategoryChipText, { color: colors.text }, isSelected && { color: "#fff", fontWeight: "bold" }]}>
+                          {cat}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <Text style={[styles.inputLabel, { color: colors.text }]}>Descripción (opcional)</Text>
+                <TextInput
+                  placeholder="Descripción"
+                  placeholderTextColor={colors.placeholder}
+                  style={[styles.input, styles.textArea, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                  value={editDesc}
+                  onChangeText={setEditDesc}
+                  multiline
+                  numberOfLines={3}
+                />
+
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity 
+                    style={[styles.confirmButton, { backgroundColor: colors.orangeHeader }, editandoProducto && styles.buttonDisabled]} 
+                    onPress={handleEditProduct}
+                    disabled={editandoProducto}
+                  >
+                    {editandoProducto ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.confirmButtonText}>Guardar Cambios</Text>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.cancelButton, { backgroundColor: isDark ? "#333" : "#eee" }]} 
+                    onPress={() => setEditModal(false)}
+                    disabled={editandoProducto}
+                  >
+                    <Text style={[styles.cancelButtonText, { color: isDark ? colors.text : "#333" }]}>Cancelar</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          </ScrollView>
-        </View>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* QUICK FLASH OFFER CREATION MODAL */}
       <Modal visible={flashModal} transparent animationType="slide" onRequestClose={() => setFlashModal(false)}>
-        <View style={styles.modalOverlay}>
-          <ScrollView contentContainerStyle={styles.modalScroll}>
-            <View style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Text style={[styles.modalTitle, { color: colors.orangeHeader }]}>Crear Oferta Relámpago</Text>
-              <Text style={{ color: colors.subtext, fontSize: 13, marginBottom: 12, textAlign: "center" }}>
-                Producto: {selectedProduct?.nombre}
-              </Text>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
+            <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
+              <View style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[styles.modalTitle, { color: colors.orangeHeader }]}>Crear Oferta Relámpago</Text>
+                <Text style={{ color: colors.subtext, fontSize: 13, marginBottom: 12, textAlign: "center" }}>
+                  Producto: {selectedProduct?.nombre}
+                </Text>
 
-              <Text style={[styles.inputLabel, { color: colors.text }]}>Título de la Oferta *</Text>
-              <TextInput
-                placeholder="Título de la oferta"
-                placeholderTextColor={colors.placeholder}
-                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-                value={flashTitle}
-                onChangeText={setFlashTitle}
-              />
+                <Text style={[styles.inputLabel, { color: colors.text }]}>Título de la Oferta *</Text>
+                <TextInput
+                  placeholder="Título de la oferta"
+                  placeholderTextColor={colors.placeholder}
+                  style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                  value={flashTitle}
+                  onChangeText={setFlashTitle}
+                />
 
-              <Text style={[styles.inputLabel, { color: colors.text }]}>Porcentaje de Descuento (%) *</Text>
-              <TextInput
-                placeholder="Ej: 50"
-                placeholderTextColor={colors.placeholder}
-                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-                value={flashDiscount}
-                onChangeText={setFlashDiscount}
-                keyboardType="numeric"
-              />
+                <Text style={[styles.inputLabel, { color: colors.text }]}>Porcentaje de Descuento (%) *</Text>
+                <TextInput
+                  placeholder="Ej: 50"
+                  placeholderTextColor={colors.placeholder}
+                  style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                  value={flashDiscount}
+                  onChangeText={setFlashDiscount}
+                  keyboardType="numeric"
+                />
 
-              <Text style={[styles.inputLabel, { color: colors.text }]}>Cantidad Disponible *</Text>
-              <TextInput
-                placeholder="Ej: 8"
-                placeholderTextColor={colors.placeholder}
-                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-                value={flashQty}
-                onChangeText={setFlashQty}
-                keyboardType="numeric"
-              />
+                <Text style={[styles.inputLabel, { color: colors.text }]}>Cantidad Disponible *</Text>
+                <TextInput
+                  placeholder="Ej: 8"
+                  placeholderTextColor={colors.placeholder}
+                  style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                  value={flashQty}
+                  onChangeText={setFlashQty}
+                  keyboardType="numeric"
+                />
 
-              <Text style={[styles.inputLabel, { color: colors.text }]}>Vencimiento (AAAA-MM-DD HH:mm) *</Text>
-              <TextInput
-                placeholder="Ej: 2026-05-30 18:00"
-                placeholderTextColor={colors.placeholder}
-                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-                value={flashExpiry}
-                onChangeText={setFlashExpiry}
-              />
+                <Text style={[styles.inputLabel, { color: colors.text }]}>Vencimiento (AAAA-MM-DD HH:mm) *</Text>
+                <TextInput
+                  placeholder="Ej: 2026-05-30 18:00"
+                  placeholderTextColor={colors.placeholder}
+                  style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                  value={flashExpiry}
+                  onChangeText={setFlashExpiry}
+                />
 
-              <Text style={[styles.inputLabel, { color: colors.text }]}>Descripción breve</Text>
-              <TextInput
-                placeholder="Descripción de la oferta"
-                placeholderTextColor={colors.placeholder}
-                style={[styles.input, styles.textArea, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-                value={flashDesc}
-                onChangeText={setFlashDesc}
-                multiline
-                numberOfLines={3}
-              />
+                <Text style={[styles.inputLabel, { color: colors.text }]}>Descripción breve</Text>
+                <TextInput
+                  placeholder="Descripción de la oferta"
+                  placeholderTextColor={colors.placeholder}
+                  style={[styles.input, styles.textArea, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                  value={flashDesc}
+                  onChangeText={setFlashDesc}
+                  multiline
+                  numberOfLines={3}
+                />
 
-              <View style={styles.modalButtons}>
-                <TouchableOpacity 
-                  style={[styles.confirmButton, { backgroundColor: colors.orange }, creatingFlash && styles.buttonDisabled]} 
-                  onPress={handleCreateFlashOffer}
-                  disabled={creatingFlash}
-                >
-                  {creatingFlash ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text style={styles.confirmButtonText}>Crear Oferta</Text>
-                  )}
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.cancelButton, { backgroundColor: isDark ? "#333" : "#eee" }]} 
-                  onPress={() => setFlashModal(false)}
-                  disabled={creatingFlash}
-                >
-                  <Text style={[styles.cancelButtonText, { color: isDark ? colors.text : "#333" }]}>Cancelar</Text>
-                </TouchableOpacity>
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity 
+                    style={[styles.confirmButton, { backgroundColor: colors.orange }, creatingFlash && styles.buttonDisabled]} 
+                    onPress={handleCreateFlashOffer}
+                    disabled={creatingFlash}
+                  >
+                    {creatingFlash ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.confirmButtonText}>Crear Oferta</Text>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.cancelButton, { backgroundColor: isDark ? "#333" : "#eee" }]} 
+                    onPress={() => setFlashModal(false)}
+                    disabled={creatingFlash}
+                  >
+                    <Text style={[styles.cancelButtonText, { color: isDark ? colors.text : "#333" }]}>Cancelar</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          </ScrollView>
-        </View>
-      </Modal>
-
-      {/* SELECT CATEGORIES SUBMODALS */}
-      <Modal visible={showCategoryModal} transparent animationType="fade" onRequestClose={() => setShowCategoryModal(false)}>
-        <View style={styles.subModalOverlay}>
-          <View style={[styles.subModalContent, { backgroundColor: colors.card }]}>
-            <Text style={[styles.subModalTitle, { color: colors.orangeHeader }]}>Seleccionar Categoría</Text>
-            {CATEGORIAS.map(cat => (
-              <TouchableOpacity key={cat} style={styles.categoryItem} onPress={() => { setCategoria(cat); setShowCategoryModal(false); }}>
-                <Text style={{ color: colors.text, fontSize: 16 }}>{cat}</Text>
-              </TouchableOpacity>
-            ))}
+            </ScrollView>
           </View>
-        </View>
-      </Modal>
-
-      <Modal visible={showEditCategoryModal} transparent animationType="fade" onRequestClose={() => setShowEditCategoryModal(false)}>
-        <View style={styles.subModalOverlay}>
-          <View style={[styles.subModalContent, { backgroundColor: colors.card }]}>
-            <Text style={[styles.subModalTitle, { color: colors.orangeHeader }]}>Seleccionar Categoría</Text>
-            {CATEGORIAS.map(cat => (
-              <TouchableOpacity key={cat} style={styles.categoryItem} onPress={() => { setEditCategoria(cat); setShowEditCategoryModal(false); }}>
-                <Text style={{ color: colors.text, fontSize: 16 }}>{cat}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
     </View>
@@ -900,28 +971,21 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 15,
   },
-  subModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  subModalContent: {
-    width: "80%",
-    borderRadius: 16,
-    padding: 20,
-    elevation: 6,
-  },
-  subModalTitle: {
-    fontSize: 17,
-    fontWeight: "bold",
+  categoryChipsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 6,
     marginBottom: 14,
-    textAlign: "center",
   },
-  categoryItem: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f3f5",
+  modalCategoryChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  modalCategoryChipText: {
+    fontSize: 13,
   },
   buttonDisabled: {
     opacity: 0.6,

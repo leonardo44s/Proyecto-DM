@@ -408,7 +408,7 @@ export default function ExplorarScreen({ navigation }) {
                       <Ionicons name="time-outline" size={14} color={colors.subtext} style={{ marginRight: 4 }} />
                       <Text style={[styles.metaText, { color: colors.subtext }]}>{timeRemainingText}</Text>
                     </View>
-                    <Text style={[styles.qtyText, { color: colors.primary }]}>8 disponibles</Text>
+                    <Text style={[styles.qtyText, { color: colors.primary }]}>{item.producto?.cantidad ?? 0} disponibles</Text>
                   </View>
                 </View>
               </TouchableOpacity>

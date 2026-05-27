@@ -388,7 +388,7 @@ export default function ProfileScreen({ onLogout }) {
         <Text style={styles.logoutBtnText}>Cerrar sesión</Text>
       </TouchableOpacity>
 
-      <Text style={[styles.versionText, { color: colors.subtext }]}>Versión 1.2.0</Text>
+      <Text style={[styles.versionText, { color: colors.subtext }]}>Versión v1.0.0</Text>
 
       {/* MODAL DE EDICIÓN DE CAMPO INDIVIDUAL */}
       <Modal

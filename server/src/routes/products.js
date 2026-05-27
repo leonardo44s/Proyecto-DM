@@ -1,13 +1,18 @@
 const express = require("express");
 const router = express.Router();
 const Product = require("../models/Products");
+const Store = require("../models/Store");
 const auth = require("../middlewares/auth");
 const roleGuard = require("../middlewares/roleGuard");
 
 // Create
 router.post("/", auth, roleGuard("merchant"), async (req, res) => {
   try {
-    const p = new Product({ ...req.body, createdBy: req.user.id });
+    const store = await Store.findOne({ usuario: req.user.id });
+    if (!store) {
+      return res.status(400).json({ message: "No se encontró ningún comercio asociado a este usuario." });
+    }
+    const p = new Product({ ...req.body, tienda: store._id, createdBy: req.user.id });
     await p.save();
     res.status(201).json(p);
   } catch (err) {
